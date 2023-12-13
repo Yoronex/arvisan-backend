@@ -11,6 +11,6 @@ export interface NodeData {
     traces: string[],
     color: string,
     depth: number,
-    selected: boolean,
+    selected: 'true' | 'false',
   },
 }
