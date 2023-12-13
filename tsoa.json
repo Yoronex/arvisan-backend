@@ -1,12 +1,20 @@
 {
-  "entryFile": "src/app.ts",
+  "entryFile": "src/index.ts",
   "noImplicitAdditionalProperties": "throw-on-extras",
-  "controllerPathGlobs": ["src/**/*Controller.ts"],
+  "controllerPathGlobs": ["src/controllers/**/*Controller.ts"],
   "spec": {
+    "basePath": "/api",
     "outputDirectory": "build",
-    "specVersion": 3
+    "specVersion": 3,
+    "host": "localhost:3000",
+    "schemes": [
+      "http",
+      "https"
+    ]
   },
   "routes": {
-    "routesDir": "build"
+    "basePath": "/api",
+    "routesDir": "build",
+    "middleware": "express"
   }
 }
