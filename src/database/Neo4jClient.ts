@@ -1,13 +1,47 @@
-import neo4j from 'neo4j-driver';
+import neo4j, {
+  Integer, Node as Neo4jNode, Record, Relationship as Neo4jRelationship,
+} from 'neo4j-driver';
 import { Graph } from '../entities/Graph';
 import { Edge } from '../entities/Edge';
 import { Node } from '../entities/Node';
 
 export interface QueryOptions {
   id: string;
-  graphDepth: number,
+  layerDepth: number,
+  dependencyDepth: number,
   onlyInternalRelations?: boolean,
   onlyExternalRelations?: boolean,
+}
+
+type Neo4jComponentNode = Neo4jNode<Integer, {
+  color: string;
+  depth: number;
+  id: string;
+  kind: string;
+  simpleName: string;
+}>;
+
+type Neo4jComponentDependency = Neo4jRelationship<Integer, {
+  id: string;
+}>;
+
+interface Neo4jComponentGraph {
+  source: Neo4jComponentNode;
+  path: Neo4jComponentDependency[];
+  target: Neo4jComponentNode;
+}
+
+/**
+ * @property selectedId - ID of the selected node to highlight it
+ * @property maxSourceDepth - How deep the "CONTAIN" edges on the source side should go.
+ * If there is a path between two nodes too deep, create a transitive edge
+ * @property maxTargetDepth - How deep the "CONTAIN" edges on the target side should go.
+ * If there is a path between two nodes too deep, create a transitive edge
+ */
+interface GraphFilterOptions {
+  selectedId?: string;
+  maxSourceDepth?: number;
+  maxTargetDepth?: number;
 }
 
 export class Neo4jClient {
@@ -21,18 +55,71 @@ export class Neo4jClient {
     return edges.filter((e, i, all) => i === all.findIndex((e2) => e2.data.id === e.data.id));
   }
 
+  private groupRelationships(
+    relationships: Neo4jComponentDependency[],
+  ): Neo4jComponentDependency[][] {
+    if (relationships.length === 0) return [[]];
+    const chunks = [[relationships[0]]];
+    for (let i = 1; i < relationships.length; i += 1) {
+      if (relationships[i].type === chunks[chunks.length - 1][0].type) {
+        chunks[chunks.length - 1].push(relationships[i]);
+      } else {
+        chunks.push([relationships[i]]);
+      }
+    }
+    // If we do not start with any CONTAIN edges, push an empty array to the front to indicate
+    // that we do not have such edges
+    if (chunks[0][0].type.toLowerCase() !== 'contains') chunks.unshift([]);
+    // If we do not end with any CONTAIN edges, push an empty array to the back to indicate
+    // that we do not have such edges
+    if (chunks[chunks.length - 1][0].type.toLowerCase() !== 'contains' || chunks.length === 1) chunks.push([]);
+    chunks[chunks.length - 1].reverse();
+    return chunks;
+  }
+
   /**
    * Parse the given Neo4j query result to a LPG
    * @param records
    * @param name graph name
-   * @param id ID of the selected node (to highlight it)
+   * @param options
    */
-  formatToLPG(records: any[], name: string, id?: string): Graph {
+  formatToLPG(
+    records: Record<Neo4jComponentGraph>[],
+    name: string,
+    options: GraphFilterOptions = {},
+  ): Graph {
+    const { selectedId, maxSourceDepth, maxTargetDepth } = options;
+
+    // Remove all paths that are too deep for the given
+    // parameters (because then we cannot create a transitive edge)
+    const filteredRecords = records.filter((record) => {
+      // No depth filter, so keep everything
+      if (maxSourceDepth === undefined && maxTargetDepth === undefined) return true;
+      const path = record.get('path');
+      if (path.length === 0) return true;
+
+      // Split the list of edge labels into chunks of the same labels
+      const chunks = this.groupRelationships(path);
+
+      const containsSourceDepth = chunks[0][0]?.type.toLowerCase() === 'contains' ? chunks[0].length : 0;
+      const containsTargetDepth = chunks[chunks.length - 1][0]?.type.toLowerCase() === 'contains' ? chunks[chunks.length - 1].length : 0;
+      if (maxSourceDepth !== undefined) {
+        const containsTooDeep = Math.max(0, containsSourceDepth - maxSourceDepth);
+        // Target node layer is deeper than the maximum depth, so we should not keep this path
+        if (containsTargetDepth < containsTooDeep) return false;
+      }
+      if (maxTargetDepth !== undefined) {
+        const containsTooDeep = Math.max(0, containsTargetDepth - maxTargetDepth);
+        // Source node layer is deeper than the maximum depth, so we should not keep this path
+        if (containsSourceDepth < containsTooDeep) return false;
+      }
+      return true;
+    });
+
     const seenNodes: string[] = [];
-    const nodes = records
-      .map((r) => r._fields
-        .filter((field: any) => !Array.isArray(field))
-        .map((field: any): Node | undefined => {
+    const nodes = filteredRecords
+      .map((r) => [r.get('source'), r.get('target')]
+        .map((field): Node | undefined => {
           const nodeId = field.elementId;
           if (seenNodes.indexOf(nodeId) >= 0) return undefined;
           seenNodes.push(nodeId);
@@ -41,24 +128,62 @@ export class Neo4jClient {
               id: nodeId,
               properties: {
                 simpleName: field.properties.simpleName,
-                kind: 'node',
+                kind: field.properties.kind,
                 traces: [],
                 color: field.properties.color,
                 depth: Number(field.properties.depth),
-                selected: field.elementId === id ? 'true' : 'false',
+                selected: field.elementId === selectedId ? 'true' : 'false',
               },
               labels: field.labels,
             },
           };
         }))
       .flat()
-      .filter((node) => node !== undefined);
+      .filter((node) => node !== undefined) as Node[];
 
     const seenEdges: string[] = [];
-    const edges: Edge[] = records
-      .map((record) => record._fields
-        .filter((field: any) => Array.isArray(field))
-        .map((relationships: any) => relationships.map((r: any): Edge | undefined => {
+    const replaceMap = new Map<string, string>();
+
+    // Replace all transitive nodes with this existing end node (the first of the full path)
+    const addToReplaceMap = (deletedEdges: Neo4jComponentDependency[]) => {
+      if (deletedEdges.length === 0) return;
+      const firstStartNode = deletedEdges[0].startNodeElementId;
+      deletedEdges.forEach((edge) => replaceMap
+        .set(edge.endNodeElementId, firstStartNode));
+    };
+
+    const edges = filteredRecords
+      .map((record) => {
+        let path = record.get('path');
+        if (maxSourceDepth !== undefined || maxTargetDepth !== undefined) {
+          const chunks = this.groupRelationships(path);
+
+          const containsSourceDepth = chunks[0][0]?.type.toLowerCase() === 'contains' ? chunks[0].length : 0;
+          const containsTargetDepth = chunks[chunks.length - 1][0]?.type.toLowerCase() === 'contains' ? chunks[chunks.length - 1].length : 0;
+          if (maxSourceDepth !== undefined) {
+            const containsTooDeep = Math.max(0, containsSourceDepth - maxSourceDepth);
+
+            const deletedSource = chunks[0].splice(maxSourceDepth, containsTooDeep);
+            addToReplaceMap(deletedSource);
+
+            const deletedTarget = chunks[chunks.length - 1]
+              .splice(containsTargetDepth - containsTooDeep, containsTooDeep);
+            addToReplaceMap(deletedTarget);
+          }
+          if (maxTargetDepth !== undefined) {
+            const containsTooDeep = Math.max(0, containsTargetDepth - maxTargetDepth);
+
+            const deletedSource = chunks[0]
+              .splice(containsSourceDepth - containsTooDeep, containsTooDeep);
+            addToReplaceMap(deletedSource);
+
+            const deletedTarget = chunks[chunks.length - 1].splice(maxTargetDepth, containsTooDeep);
+            addToReplaceMap(deletedTarget);
+          }
+
+          path = chunks.flat();
+        }
+        return path.map((r): Edge | undefined => {
           const edgeId = r.elementId;
           if (seenEdges.indexOf(edgeId) >= 0) return undefined;
           seenEdges.push(edgeId);
@@ -74,10 +199,25 @@ export class Neo4jClient {
               },
             },
           };
-        })))
+        });
+      })
       .flat()
       .flat()
-      .filter((edge) => edge !== undefined);
+      .filter((edge) => edge !== undefined)
+      .map((edge, i, all): Edge => {
+        const e = edge!;
+        if (replaceMap.has(e.data.source)) e.data.source = replaceMap.get(e.data.source) as string;
+        if (replaceMap.has(e.data.target)) e.data.target = replaceMap.get(e.data.target) as string;
+        return e;
+      })
+      .reduce((newEdges: Edge[], edge, i, all) => {
+        const index = newEdges.findIndex((e) => e.data.source === edge.data.source
+            && e.data.target === edge.data.target);
+        if (index < 0) return [...newEdges, edge];
+        // eslint-disable-next-line no-param-reassign
+        newEdges[index].data.properties.weight += 1;
+        return newEdges;
+      }, []);
 
     return {
       name,
@@ -90,16 +230,15 @@ export class Neo4jClient {
    * Execute the given query and parse the result to a LPG
    * @param query
    * @param name
+   * @param options
    * @private
    */
-  private async executeAndProcessQuery(query: string, name: string) {
+  private async executeAndProcessQuery(query: string, name: string, options?: GraphFilterOptions) {
     const session = this.driver.session();
-    const result = await session.run(query);
+    const result = await session.executeRead((tx) => tx.run<Neo4jComponentGraph>(query));
     await session.close();
 
-    const graph = this.formatToLPG(result.records, name);
-    // this.validateGraph(graph);
-    return graph;
+    return this.formatToLPG(result.records, name, options);
   }
 
   /**
@@ -153,32 +292,28 @@ export class Neo4jClient {
   }
 
   async getAllDomains() {
-    const session = this.driver.session();
-    const result = await session.run('MATCH (d: Domain) return d');
-    await session.close();
-    return this.formatToLPG(result.records, 'All domains');
+    return this.executeAndProcessQuery('MATCH (d: Domain) return d as source, [] as path, d as target', 'All domains');
   }
 
   async getParents(id: string) {
     const query = `
       MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')<-[r:CONTAINS*0..5]-(selectedParent) 
-      RETURN selectedNode, r, selectedParent`;
-    return this.executeAndProcessQuery(query, 'All parents');
+      RETURN selectedNode as source, r as path, selectedParent as target`;
+    return this.executeAndProcessQuery(query, 'All parents', { selectedId: id });
   }
 
-  async getChildren(id: string) {
+  async getChildren(id: string, depth: number) {
     const query = `
-      MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')-[r:CONTAINS*0..5]->(moduleOrLayer) 
-      RETURN selectedNode, r, moduleOrLayer`;
-    return this.executeAndProcessQuery(query, 'All sublayers and modules');
+      MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')-[r:CONTAINS*0..${depth}]->(moduleOrLayer) 
+      RETURN selectedNode as source, r as path, moduleOrLayer as target`;
+    return this.executeAndProcessQuery(query, 'All sublayers and modules', { selectedId: id });
   }
 
   async getDomainModules({
-    id, graphDepth, onlyExternalRelations, onlyInternalRelations,
+    id, layerDepth, dependencyDepth, onlyExternalRelations, onlyInternalRelations,
   }: QueryOptions) {
     let query = `
-            MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')-[r1:CONTAINS*0..5]->(moduleOrLayer) // Get all modules that belong to the selected node
-            OPTIONAL MATCH (moduleOrLayer)-[r2*1..${graphDepth}]->(dependency:Module)                        // Get the dependencies of the modules with given depth
+            MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')-[r1:CONTAINS*0..5]->(moduleOrLayer)-[r2*1..${dependencyDepth}]->(dependency:Module) // Get all modules that belong to the selected node
             MATCH (selectedNode)<-[:CONTAINS*0..5]-(selectedDomain:Domain)                                   // Get the domain of the selected node
             MATCH (dependency)<-[r3:CONTAINS*0..5]-(parent)                                                  // Get the layers, application and domain of all dependencies
             WHERE true `;
@@ -190,16 +325,13 @@ export class Neo4jClient {
       //  node and modules (like (sub)layers)
       query += 'AND NOT (selectedDomain:Domain)-[:CONTAINS*]->(dependency) '; // Dependency should not be in the same domain
     }
-    query += 'RETURN DISTINCT selectedNode, r1, r2, r3, moduleOrLayer, dependency, selectedDomain, parent';
+    query += 'RETURN DISTINCT selectedNode as source, r1 + r2 + r3 as path, parent as target';
 
     const graphs = await Promise.all([
-      this.getChildren(id),
+      this.getChildren(id, layerDepth),
       this.getParents(id),
-      this.executeAndProcessQuery(query, 'All dependencies and their parents'),
+      this.executeAndProcessQuery(query, 'All dependencies and their parents', { selectedId: id, maxSourceDepth: layerDepth }),
     ]);
-    const mergedGraph = this.mergeGraphs(...graphs);
-    return mergedGraph;
+    return this.mergeGraphs(...graphs);
   }
-  //
-  // AND (selectedDomain)-[:CONTAINS*]->(dependency)
 }
