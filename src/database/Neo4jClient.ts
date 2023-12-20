@@ -35,16 +35,17 @@ interface Neo4jComponentGraph {
 
 /**
  * @property selectedId - ID of the selected node to highlight it
- * @property maxSourceDepth - How deep the "CONTAIN" edges on the source side should go.
- * If there is a path between two nodes too deep, create a transitive edge
- * @property maxTargetDepth - How deep the "CONTAIN" edges on the target side should go.
+ * @property reverseDirection - Whether the filters should be applied to the
+ * "target" node instead of the "source"
+ * @property maxDepth - How deep the "CONTAIN" edges on the target side should go.
  * If there is a path between two nodes too deep, create a transitive edge
  */
 interface GraphFilterOptions {
   selectedId?: string;
-  maxSourceDepth?: number;
-  maxTargetDepth?: number;
   reverseDirection?: boolean;
+  maxDepth?: number;
+  minRelationships?: number;
+  maxRelationships?: number;
 }
 
 export class Neo4jClient {
@@ -91,13 +92,13 @@ export class Neo4jClient {
     options: GraphFilterOptions = {},
   ): Graph {
     console.log(records.length);
-    const { selectedId, maxSourceDepth, maxTargetDepth } = options;
+    const { selectedId, maxDepth, reverseDirection } = options;
 
     // Remove all paths that are too deep for the given
     // parameters (because then we cannot create a transitive edge)
     const filteredRecords = records.filter((record) => {
       // No depth filter, so keep everything
-      if (maxSourceDepth === undefined && maxTargetDepth === undefined) return true;
+      if (maxDepth === undefined) return true;
       const path = record.get('path');
       if (path.length === 0) return true;
 
@@ -106,13 +107,12 @@ export class Neo4jClient {
 
       const containsSourceDepth = chunks[0][0]?.type.toLowerCase() === 'contains' ? chunks[0].length : 0;
       const containsTargetDepth = chunks[chunks.length - 1][0]?.type.toLowerCase() === 'contains' ? chunks[chunks.length - 1].length : 0;
-      if (maxSourceDepth !== undefined) {
-        const containsTooDeep = Math.max(0, containsSourceDepth - maxSourceDepth);
+      if (!reverseDirection) {
+        const containsTooDeep = Math.max(0, containsSourceDepth - maxDepth);
         // Target node layer is deeper than the maximum depth, so we should not keep this path
         if (containsTargetDepth < containsTooDeep) return false;
-      }
-      if (maxTargetDepth !== undefined) {
-        const containsTooDeep = Math.max(0, containsTargetDepth - maxTargetDepth);
+      } else {
+        const containsTooDeep = Math.max(0, containsTargetDepth - maxDepth);
         // Source node layer is deeper than the maximum depth, so we should not keep this path
         if (containsSourceDepth < containsTooDeep) return false;
       }
@@ -158,29 +158,28 @@ export class Neo4jClient {
     const edges = filteredRecords
       .map((record) => {
         let path = record.get('path');
-        if (maxSourceDepth !== undefined || maxTargetDepth !== undefined) {
+        if (maxDepth !== undefined) {
           const chunks = this.groupRelationships(path);
 
           const containsSourceDepth = chunks[0][0]?.type.toLowerCase() === 'contains' ? chunks[0].length : 0;
           const containsTargetDepth = chunks[chunks.length - 1][0]?.type.toLowerCase() === 'contains' ? chunks[chunks.length - 1].length : 0;
-          if (maxSourceDepth !== undefined) {
-            const containsTooDeep = Math.max(0, containsSourceDepth - maxSourceDepth);
+          if (!reverseDirection) {
+            const containsTooDeep = Math.max(0, containsSourceDepth - maxDepth);
 
-            const deletedSource = chunks[0].splice(maxSourceDepth, containsTooDeep);
+            const deletedSource = chunks[0].splice(maxDepth, containsTooDeep);
             addToReplaceMap(deletedSource);
 
             const deletedTarget = chunks[chunks.length - 1]
               .splice(containsTargetDepth - containsTooDeep, containsTooDeep);
             addToReplaceMap(deletedTarget);
-          }
-          if (maxTargetDepth !== undefined) {
-            const containsTooDeep = Math.max(0, containsTargetDepth - maxTargetDepth);
+          } else {
+            const containsTooDeep = Math.max(0, containsTargetDepth - maxDepth);
 
             const deletedSource = chunks[0]
               .splice(containsSourceDepth - containsTooDeep, containsTooDeep);
             addToReplaceMap(deletedSource);
 
-            const deletedTarget = chunks[chunks.length - 1].splice(maxTargetDepth, containsTooDeep);
+            const deletedTarget = chunks[chunks.length - 1].splice(maxDepth, containsTooDeep);
             addToReplaceMap(deletedTarget);
           }
 
@@ -207,13 +206,13 @@ export class Neo4jClient {
       .flat()
       .flat()
       .filter((edge) => edge !== undefined)
-      .map((edge, i, all): Edge => {
+      .map((edge): Edge => {
         const e = edge!;
         if (replaceMap.has(e.data.source)) e.data.source = replaceMap.get(e.data.source) as string;
         if (replaceMap.has(e.data.target)) e.data.target = replaceMap.get(e.data.target) as string;
         return e;
       })
-      .reduce((newEdges: Edge[], edge, i, all) => {
+      .reduce((newEdges: Edge[], edge) => {
         const index = newEdges.findIndex((e) => e.data.source === edge.data.source
             && e.data.target === edge.data.target);
         if (index < 0) return [...newEdges, edge];
@@ -313,7 +312,8 @@ export class Neo4jClient {
   }
 
   async getDomainModules({
-    id, layerDepth, dependencyDepth, onlyExternalRelations, onlyInternalRelations, showDependencies, showDependents,
+    id, layerDepth, dependencyDepth, onlyExternalRelations, onlyInternalRelations,
+    showDependencies, showDependents,
   }: QueryOptions) {
     const buildQuery = (dependencies: boolean = true) => {
       let query = `
@@ -340,8 +340,8 @@ export class Neo4jClient {
       this.getChildren(id, layerDepth),
       this.getParents(id),
     ];
-    if (showDependencies) promises.push(this.executeAndProcessQuery(buildQuery(true), 'All dependencies and their parents', { selectedId: id, maxSourceDepth: layerDepth }));
-    if (showDependents) promises.push(this.executeAndProcessQuery(buildQuery(false), 'All dependents and their parents', { selectedId: id, maxTargetDepth: layerDepth }));
+    if (showDependencies) promises.push(this.executeAndProcessQuery(buildQuery(true), 'All dependencies and their parents', { selectedId: id, maxDepth: layerDepth }));
+    if (showDependents) promises.push(this.executeAndProcessQuery(buildQuery(false), 'All dependents and their parents', { selectedId: id, maxDepth: layerDepth, reverseDirection: true }));
 
     const graphs = await Promise.all(promises);
     return this.mergeGraphs(...graphs);
