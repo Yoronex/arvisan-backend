@@ -11,6 +11,8 @@ export interface QueryOptions {
   dependencyDepth: number,
   onlyInternalRelations?: boolean,
   onlyExternalRelations?: boolean,
+  showDependencies?: boolean,
+  showDependents?: boolean,
 }
 
 type Neo4jComponentNode = Neo4jNode<Integer, {
@@ -42,6 +44,7 @@ interface GraphFilterOptions {
   selectedId?: string;
   maxSourceDepth?: number;
   maxTargetDepth?: number;
+  reverseDirection?: boolean;
 }
 
 export class Neo4jClient {
@@ -73,7 +76,6 @@ export class Neo4jClient {
     // If we do not end with any CONTAIN edges, push an empty array to the back to indicate
     // that we do not have such edges
     if (chunks[chunks.length - 1][0].type.toLowerCase() !== 'contains' || chunks.length === 1) chunks.push([]);
-    chunks[chunks.length - 1].reverse();
     return chunks;
   }
 
@@ -88,6 +90,7 @@ export class Neo4jClient {
     name: string,
     options: GraphFilterOptions = {},
   ): Graph {
+    console.log(records.length);
     const { selectedId, maxSourceDepth, maxTargetDepth } = options;
 
     // Remove all paths that are too deep for the given
@@ -310,28 +313,37 @@ export class Neo4jClient {
   }
 
   async getDomainModules({
-    id, layerDepth, dependencyDepth, onlyExternalRelations, onlyInternalRelations,
+    id, layerDepth, dependencyDepth, onlyExternalRelations, onlyInternalRelations, showDependencies, showDependents,
   }: QueryOptions) {
-    let query = `
-            MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')-[r1:CONTAINS*0..5]->(moduleOrLayer)-[r2*1..${dependencyDepth}]->(dependency:Module) // Get all modules that belong to the selected node
+    const buildQuery = (dependencies: boolean = true) => {
+      let query = `
+            MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')-[r1:CONTAINS*0..5]->(moduleOrLayer)${!dependencies ? '<' : ''}-[r2*1..${dependencyDepth}]-${dependencies ? '>' : ''}(dependency:Module) // Get all modules that belong to the selected node
             MATCH (selectedNode)<-[:CONTAINS*0..5]-(selectedDomain:Domain)                                   // Get the domain of the selected node
             MATCH (dependency)<-[r3:CONTAINS*0..5]-(parent)                                                  // Get the layers, application and domain of all dependencies
             WHERE true `;
-    if (onlyInternalRelations) {
-      query += 'AND (selectedDomain:Domain)-[:CONTAINS*]->(dependency) '; // Dependency should be in the same domain
-    }
-    if (onlyExternalRelations) {
-      // TODO: Fix exclusion of all non-module nodes between the selected
-      //  node and modules (like (sub)layers)
-      query += 'AND NOT (selectedDomain:Domain)-[:CONTAINS*]->(dependency) '; // Dependency should not be in the same domain
-    }
-    query += 'RETURN DISTINCT selectedNode as source, r1 + r2 + r3 as path, parent as target';
+      if (onlyInternalRelations) {
+        query += 'AND (selectedDomain:Domain)-[:CONTAINS*]->(dependency) '; // Dependency should be in the same domain
+      }
+      if (onlyExternalRelations) {
+        query += 'AND NOT (selectedDomain:Domain)-[:CONTAINS*]->(dependency) '; // Dependency should not be in the same domain
+      }
 
-    const graphs = await Promise.all([
+      if (dependencies) {
+        query += 'RETURN DISTINCT selectedNode as source, r1 + r2 + reverse(r3) as path, parent as target';
+      } else {
+        query += 'RETURN DISTINCT parent as source, reverse(r3) + r2 + r1 as path, selectedNode as target';
+      }
+      return query;
+    };
+
+    const promises: Promise<Graph>[] = [
       this.getChildren(id, layerDepth),
       this.getParents(id),
-      this.executeAndProcessQuery(query, 'All dependencies and their parents', { selectedId: id, maxSourceDepth: layerDepth }),
-    ]);
+    ];
+    if (showDependencies) promises.push(this.executeAndProcessQuery(buildQuery(true), 'All dependencies and their parents', { selectedId: id, maxSourceDepth: layerDepth }));
+    if (showDependents) promises.push(this.executeAndProcessQuery(buildQuery(false), 'All dependents and their parents', { selectedId: id, maxTargetDepth: layerDepth }));
+
+    const graphs = await Promise.all(promises);
     return this.mergeGraphs(...graphs);
   }
 }
