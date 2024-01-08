@@ -200,7 +200,7 @@ export class Neo4jClient {
 
     // Find the nodes that need to be replaced (and with which nodes).
     // Also, already remove the too-deep nodes
-    if (maxDepth) {
+    if (maxDepth !== undefined) {
       filteredRecords = filteredRecords.map((record, i, all): Neo4jComponentGraph => {
         const { path } = record;
         const chunks = this.groupRelationships(path);
@@ -429,7 +429,13 @@ export class Neo4jClient {
   }
 
   async getAllDomains() {
-    return this.executeAndProcessQuery('MATCH (d: Domain) return d as source, [] as path, d as target', 'All domains');
+    const query = `
+            MATCH (selectedNode:Domain)-[r1:CONTAINS*0..5]->(moduleOrLayer)-[r2*1..1]->(dependency:Module)   // Get all modules that belong to the selected node
+            MATCH (selectedNode)<-[:CONTAINS*0..5]-(selectedDomain:Domain)                                   // Get the domain of the selected node
+            MATCH (dependency)<-[r3:CONTAINS*0..5]-(parent)                                                  // Get the layers, application and domain of all dependencies
+            WHERE NOT (selectedDomain:Domain)-[:CONTAINS*]->(dependency) 
+            RETURN DISTINCT selectedNode as source, r1 + r2 + reverse(r3) as path, parent as target `;
+    return this.executeAndProcessQuery(query, 'All domains', { maxDepth: 0 });
   }
 
   async getParents(id: string) {
