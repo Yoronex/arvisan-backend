@@ -41,6 +41,12 @@ interface Neo4jComponentGraph {
   target: Neo4jComponentNode;
 }
 
+interface Neo4jComponentGraphWithChunks {
+  source: Neo4jComponentNode;
+  chunks: Neo4jComponentDependency[][];
+  target: Neo4jComponentNode;
+}
+
 /**
  * @property selectedId - ID of the selected node to highlight it
  * @property reverseDirection - Whether the filters should be applied to the
@@ -125,7 +131,7 @@ export class Neo4jClient {
       selectedId, maxDepth, reverseDirection, minRelationships, maxRelationships,
     } = options;
 
-    // Process the nodes at the beginning, as records that are no maximal path are deleted
+    // Process the nodes at the beginning, because records that are no maximal path are deleted
     // Then, we lose crucial information on the nodes on these paths
     // We should filter these nodes later; only keep the nodes that lay on one or more paths
     const seenNodes: string[] = [];
@@ -153,14 +159,21 @@ export class Neo4jClient {
       .flat()
       .filter((node) => node !== undefined) as Node[];
 
+    const recordsToProcess: Neo4jComponentGraphWithChunks[] = records
+      .map((record) => record.toObject())
+      .map((record) => ({
+        source: record.source,
+        chunks: this.groupRelationships(record.path, reverseDirection),
+        target: record.target,
+      }));
+
     // Keep only the paths that go from selected node to the domain node of the relationship
     // We have to delete any duplicates, because otherwise all these extra paths count towards
     // the total number of relationship a leaf has.
     const seenPaths = new Map<string, number>();
-    let filteredRecords = records.map((record) => record.toObject())
+    let filteredRecords = recordsToProcess
       .map((record) => {
-        const { path } = record;
-        const chunks = this.groupRelationships(path, reverseDirection);
+        const { chunks } = record;
         const pathId = chunks.slice(1, chunks.length - 1).flat().map((e) => e.elementId).join(',');
 
         let currDepth = 0;
@@ -175,8 +188,7 @@ export class Neo4jClient {
         }
         return record;
       }).filter((record) => {
-        const { path } = record;
-        const chunks = this.groupRelationships(path, reverseDirection);
+        const { chunks } = record;
         const pathId = chunks.slice(1, chunks.length - 1).flat().map((e) => e.elementId).join(',');
         const depth = seenPaths.get(pathId) || 0;
 
@@ -198,9 +210,8 @@ export class Neo4jClient {
     // Find the nodes that need to be replaced (and with which nodes).
     // Also, already remove the too-deep nodes
     if (maxDepth !== undefined) {
-      filteredRecords = filteredRecords.map((record): Neo4jComponentGraph => {
-        const { path } = record;
-        const chunks = this.groupRelationships(path, reverseDirection);
+      filteredRecords = filteredRecords.map((record): Neo4jComponentGraphWithChunks => {
+        const { chunks } = record;
 
         const containsSourceDepth = chunks[0][0]?.type.toLowerCase() === 'contains' ? chunks[0].length : 0;
         const containsTargetDepth = chunks[chunks.length - 1][0]?.type.toLowerCase() === 'contains' ? chunks[chunks.length - 1].length : 0;
@@ -224,25 +235,17 @@ export class Neo4jClient {
           addToReplaceMap(deletedTarget);
         }
 
-        return {
-          ...record,
-          path: [
-            ...chunks[0],
-            ...chunks.slice(1, chunks.length - 1).flat(),
-            ...chunks[chunks.length - 1],
-          ] as Neo4jComponentDependency[],
-        };
+        return record;
         // Replace the source and target nodes of the dependency edges to make them transitive
-      }).map((record): Neo4jComponentGraph => {
-        const { path } = record;
-        const chunks = this.groupRelationships(path, reverseDirection);
+      }).map((record): Neo4jComponentGraphWithChunks => {
+        const { chunks } = record;
         const toEdit = chunks.slice(1, chunks.length - 1);
 
         return {
           ...record,
-          path: [
-            ...chunks[0],
-            ...toEdit.map((chunk) => chunk.map((e): Neo4jComponentDependency => {
+          chunks: [
+            chunks[0],
+            toEdit.map((chunk) => chunk.map((e): Neo4jComponentDependency => {
               if (replaceMap.has(e.startNodeElementId)) {
                 e.startNodeElementId = replaceMap.get(e.startNodeElementId) as string;
               }
@@ -251,24 +254,24 @@ export class Neo4jClient {
               }
               return e;
             })).flat(),
-            ...chunks[chunks.length - 1],
-          ] as Neo4jComponentDependency[],
+            chunks[chunks.length - 1],
+          ] as Neo4jComponentDependency[][],
         };
       });
     }
 
     // Count how many relationships each child of the selected node has
     const relationsMap = new Map<string, string[]>();
-    filteredRecords.forEach((record) => {
+    filteredRecords.forEach(({ chunks }) => {
       if (!minRelationships && !maxRelationships) return;
 
-      const chunks = this.groupRelationships(record.path, reverseDirection);
       if (chunks.length <= 1 || chunks[1].length === 0) return;
 
       let node: string;
       let relatedNode: string;
       if (reverseDirection) {
-        const edge = chunks[chunks.length - 2][chunks[chunks.length - 2].length - 1];
+        const edge = chunks[chunks
+          .length - 2][chunks[chunks.length - 2].length - 1];
         node = edge?.endNodeElementId;
         relatedNode = edge?.startNodeElementId;
       } else {
@@ -285,14 +288,13 @@ export class Neo4jClient {
     });
 
     // Apply filter
-    filteredRecords = filteredRecords.filter((record) => {
+    filteredRecords = filteredRecords.filter(({ chunks }) => {
       if (!minRelationships && !maxRelationships) return true;
-
-      const chunks = this.groupRelationships(record.path, reverseDirection);
 
       let node: string;
       if (reverseDirection) {
-        node = chunks[chunks.length - 2][chunks[chunks.length - 2].length - 1]?.endNodeElementId;
+        node = chunks[chunks
+          .length - 2][chunks[chunks.length - 2].length - 1]?.endNodeElementId;
       } else {
         node = chunks[1][0]?.startNodeElementId; // Last element of first chunk
       }
@@ -305,7 +307,7 @@ export class Neo4jClient {
 
     const seenEdges: string[] = [];
     const edges = filteredRecords
-      .map((record) => record.path.map((r): Edge | undefined => {
+      .map((record) => record.chunks.flat().map((r): Edge | undefined => {
         const edgeId = r.elementId;
         if (seenEdges.indexOf(edgeId) >= 0) return undefined;
         seenEdges.push(edgeId);
@@ -425,7 +427,9 @@ export class Neo4jClient {
             MATCH (dependency)<-[r3:CONTAINS*0..5]-(parent)                                                  // Get the layers, application and domain of all dependencies
             WHERE NOT (selectedDomain:Domain)-[:CONTAINS*]->(dependency) 
             RETURN DISTINCT selectedNode as source, r1 + r2 + reverse(r3) as path, parent as target `;
-    return this.executeAndProcessQuery(query, 'All domains', { maxDepth: 0 });
+    const graph = await this.executeAndProcessQuery(query, 'All domains', { maxDepth: 0 });
+    this.validateGraph(graph);
+    return graph;
   }
 
   async getParents(id: string) {
