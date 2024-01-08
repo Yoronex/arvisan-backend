@@ -135,7 +135,7 @@ export class Neo4jClient {
     // We have to delete any duplicates, because otherwise all these extra paths count towards
     // the total number of relationship a leaf has.
     const seenPaths = new Map<string, number>();
-    let filteredRecords = records.map((record, i, all) => record.toObject())
+    let filteredRecords = records.map((record) => record.toObject())
       .map((record) => {
         const { path } = record;
         const chunks = this.groupRelationships(path);
@@ -152,7 +152,7 @@ export class Neo4jClient {
           seenPaths.set(pathId, Math.max(currDepth, chunks[chunks.length - 1].length));
         }
         return record;
-      }).filter((record, i, all) => {
+      }).filter((record) => {
         const { path } = record;
         const chunks = this.groupRelationships(path);
         const pathId = chunks.slice(1, chunks.length - 1).flat().map((e) => e.elementId).join(',');
@@ -163,31 +163,6 @@ export class Neo4jClient {
         }
         return chunks[chunks.length - 1].length === depth;
       });
-
-    // Remove all paths that are too deep for the given
-    // parameters (because then we cannot create a transitive edge)
-    filteredRecords = filteredRecords.filter((record, i, all) => {
-      // No depth filter, so keep everything
-      if (maxDepth === undefined) return true;
-      const { path } = record;
-      if (path.length === 0) return true;
-
-      // Split the list of edge labels into chunks of the same labels
-      const chunks = this.groupRelationships(path);
-
-      const containsSourceDepth = chunks[0][0]?.type.toLowerCase() === 'contains' ? chunks[0].length : 0;
-      const containsTargetDepth = chunks[chunks.length - 1][0]?.type.toLowerCase() === 'contains' ? chunks[chunks.length - 1].length : 0;
-      if (!reverseDirection) {
-        const containsTooDeep = Math.max(0, containsSourceDepth - maxDepth);
-        // Target node layer is deeper than the maximum depth, so we should not keep this path
-        if (containsTargetDepth < containsTooDeep) return false;
-      } else {
-        const containsTooDeep = Math.max(0, containsTargetDepth - maxDepth);
-        // Source node layer is deeper than the maximum depth, so we should not keep this path
-        if (containsSourceDepth < containsTooDeep) return false;
-      }
-      return true;
-    });
 
     // Replace all transitive nodes with this existing end node (the first of the full path)
     const replaceMap = new Map<string, string>();
@@ -201,7 +176,7 @@ export class Neo4jClient {
     // Find the nodes that need to be replaced (and with which nodes).
     // Also, already remove the too-deep nodes
     if (maxDepth !== undefined) {
-      filteredRecords = filteredRecords.map((record, i, all): Neo4jComponentGraph => {
+      filteredRecords = filteredRecords.map((record): Neo4jComponentGraph => {
         const { path } = record;
         const chunks = this.groupRelationships(path);
 
@@ -236,7 +211,7 @@ export class Neo4jClient {
           ] as Neo4jComponentDependency[],
         };
         // Replace the source and target nodes of the dependency edges to make them transitive
-      }).map((record, i, all): Neo4jComponentGraph => {
+      }).map((record): Neo4jComponentGraph => {
         const { path } = record;
         const chunks = this.groupRelationships(path);
         const toEdit = chunks.slice(1, chunks.length - 1);
@@ -289,14 +264,14 @@ export class Neo4jClient {
 
     // Apply filter
     filteredRecords = filteredRecords.filter((record) => {
-      const chunks = this.groupRelationships(record.path);
       if (!minRelationships && !maxRelationships) return true;
+
+      const chunks = this.groupRelationships(record.path);
 
       let node: string;
       if (reverseDirection) {
         node = chunks[chunks.length - 2][chunks[chunks.length - 2].length - 1]?.endNodeElementId;
       } else {
-        // eslint-disable-next-line prefer-destructuring
         node = chunks[1][0]?.startNodeElementId; // Last element of first chunk
       }
 
@@ -328,15 +303,8 @@ export class Neo4jClient {
       .flat()
       .flat()
       .filter((edge) => edge !== undefined)
+      // Typescript is being stupid, so set typing so all edges exist
       .map((edge): Edge => edge!)
-      // .map((edge): Edge => {
-      //   const e = edge!;
-      //   if (replaceMap.has(e.data.source)) e.data.source =
-    //   replaceMap.get(e.data.source) as string;
-      //   if (replaceMap.has(e.data.target)) e.data.target =
-    //   replaceMap.get(e.data.target) as string;
-      //   return e;
-      // })
       .reduce((newEdges: Edge[], edge) => {
         const index = newEdges.findIndex((e) => e.data.source === edge.data.source
             && e.data.target === edge.data.target);
