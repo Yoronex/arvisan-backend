@@ -69,6 +69,7 @@ export class Neo4jClient {
 
   private groupRelationships(
     relationships: Neo4jComponentDependency[],
+    reverseDirection?: boolean,
   ): Neo4jComponentDependency[][] {
     if (relationships.length === 0) return [[]];
     const chunks = [[relationships[0]]];
@@ -79,12 +80,33 @@ export class Neo4jClient {
         chunks.push([relationships[i]]);
       }
     }
-    // If we do not start with any CONTAIN edges, push an empty array to the front to indicate
-    // that we do not have such edges
-    if (chunks[0][0].type.toLowerCase() !== 'contains') chunks.unshift([]);
-    // If we do not end with any CONTAIN edges, push an empty array to the back to indicate
-    // that we do not have such edges
-    if (chunks[chunks.length - 1][0]?.type.toLowerCase() !== 'contains' || chunks.length === 1) chunks.push([]);
+
+    // No dependency edges, only containment edges. However, these might go down and immediately
+    // go back up. Therefore, we need to find where to split this single array of CONTAIN edges
+    if (chunks.length === 1) {
+      const lastContainEdge = chunks[0][chunks[0].length - 1];
+      const index = chunks[0].findIndex((e) => e.elementId === lastContainEdge.elementId);
+      // The last CONTAIN edge in the chain exists only once, so we are not going back up.
+      // Push an empty array.
+      if (index === chunks[0].length - 1 && !reverseDirection) {
+        chunks.push([]);
+      } else if (index === chunks[0].length - 1) {
+        chunks.unshift([]);
+      } else if (!reverseDirection) {
+        const dependencyParents = chunks[0].splice(index + 1, chunks[0].length - 1 - index);
+        chunks.push(dependencyParents);
+      } else {
+        const dependencyParents = chunks[0].splice(0, index);
+        chunks.unshift(dependencyParents);
+      }
+    } else {
+      // If we do not start with any CONTAIN edges, push an empty array to the front to indicate
+      // that we do not have such edges
+      if (chunks[0][0].type.toLowerCase() !== 'contains') chunks.unshift([]);
+      // If we do not end with any CONTAIN edges, push an empty array to the back to indicate
+      // that we do not have such edges
+      if (chunks[chunks.length - 1][0]?.type.toLowerCase() !== 'contains' || chunks.length === 1) chunks.push([]);
+    }
     return chunks;
   }
 
@@ -138,7 +160,7 @@ export class Neo4jClient {
     let filteredRecords = records.map((record) => record.toObject())
       .map((record) => {
         const { path } = record;
-        const chunks = this.groupRelationships(path);
+        const chunks = this.groupRelationships(path, reverseDirection);
         const pathId = chunks.slice(1, chunks.length - 1).flat().map((e) => e.elementId).join(',');
 
         let currDepth = 0;
@@ -154,7 +176,7 @@ export class Neo4jClient {
         return record;
       }).filter((record) => {
         const { path } = record;
-        const chunks = this.groupRelationships(path);
+        const chunks = this.groupRelationships(path, reverseDirection);
         const pathId = chunks.slice(1, chunks.length - 1).flat().map((e) => e.elementId).join(',');
         const depth = seenPaths.get(pathId) || 0;
 
@@ -178,7 +200,7 @@ export class Neo4jClient {
     if (maxDepth !== undefined) {
       filteredRecords = filteredRecords.map((record): Neo4jComponentGraph => {
         const { path } = record;
-        const chunks = this.groupRelationships(path);
+        const chunks = this.groupRelationships(path, reverseDirection);
 
         const containsSourceDepth = chunks[0][0]?.type.toLowerCase() === 'contains' ? chunks[0].length : 0;
         const containsTargetDepth = chunks[chunks.length - 1][0]?.type.toLowerCase() === 'contains' ? chunks[chunks.length - 1].length : 0;
@@ -213,7 +235,7 @@ export class Neo4jClient {
         // Replace the source and target nodes of the dependency edges to make them transitive
       }).map((record): Neo4jComponentGraph => {
         const { path } = record;
-        const chunks = this.groupRelationships(path);
+        const chunks = this.groupRelationships(path, reverseDirection);
         const toEdit = chunks.slice(1, chunks.length - 1);
 
         return {
@@ -240,7 +262,7 @@ export class Neo4jClient {
     filteredRecords.forEach((record) => {
       if (!minRelationships && !maxRelationships) return;
 
-      const chunks = this.groupRelationships(record.path);
+      const chunks = this.groupRelationships(record.path, reverseDirection);
       if (chunks.length <= 1 || chunks[1].length === 0) return;
 
       let node: string;
@@ -266,7 +288,7 @@ export class Neo4jClient {
     filteredRecords = filteredRecords.filter((record) => {
       if (!minRelationships && !maxRelationships) return true;
 
-      const chunks = this.groupRelationships(record.path);
+      const chunks = this.groupRelationships(record.path, reverseDirection);
 
       let node: string;
       if (reverseDirection) {
