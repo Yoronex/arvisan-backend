@@ -364,7 +364,10 @@ export class Neo4jClient {
    */
   private async executeAndProcessQuery(query: string, name: string, options?: GraphFilterOptions) {
     const session = this.driver.session();
-    const result = await session.executeRead((tx) => tx.run<Neo4jComponentGraph>(query));
+    const result = await session.executeRead(
+      (tx) => tx.run<Neo4jComponentGraph>(query),
+      { timeout: 5000 },
+    );
     await session.close();
 
     return this.formatToLPG(result.records, name, options);

@@ -18,9 +18,16 @@ export class GraphController extends Controller {
   @Post('node')
   public async getNode(@Body() params: QueryOptions) {
     const client = new Neo4jClient();
-    const graph = await client.getDomainModules(params);
-    await client.destroy();
-
-    return graph;
+    try {
+      const graph = await client.getDomainModules(params);
+      await client.destroy();
+      return graph;
+    } catch (e: any) {
+      if (e.name === 'Neo4jError' && e.code === 'Neo.ClientError.Transaction.TransactionTimedOutClientConfiguration') {
+        this.setStatus(400);
+        return { message: 'Query is too big to finish in 5 seconds' };
+      }
+      throw e;
+    }
   }
 }
