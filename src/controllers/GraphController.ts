@@ -6,11 +6,6 @@ import { Neo4jClient, QueryOptions } from '../database/Neo4jClient';
 @Route('graph')
 @Tags('graph')
 export class GraphController extends Controller {
-  @Get()
-  public getGraph() {
-    return 'pong';
-  }
-
   @Get('domains')
   public async getAllDomains() {
     const client = new Neo4jClient();
