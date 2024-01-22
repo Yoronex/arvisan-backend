@@ -3,12 +3,17 @@ export interface Edge {
 }
 
 export interface EdgeData {
+  /** Unique edge identifier */
   id: string,
+  /** Identifier of source node */
   source: string,
+  /** Identifier of target node */
   target: string,
-  label: string,
+  /** Edge label */
+  interaction: string,
+  /** Custom properties */
   properties: {
-    weight: 1,
-    traces: string[],
+    /** Edge weight */
+    weight: number,
   },
 }

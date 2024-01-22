@@ -6,11 +6,17 @@
     "basePath": "/api",
     "outputDirectory": "build",
     "specVersion": 3,
-    "host": "localhost:3000",
+    "host": "",
     "schemes": [
       "http",
       "https"
-    ]
+    ],
+    "securityDefinitions": {
+      "basicAuth": {
+        "type": "http",
+        "scheme": "basic"
+      }
+    }
   },
   "routes": {
     "basePath": "/api",

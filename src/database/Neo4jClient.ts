@@ -144,15 +144,14 @@ export class Neo4jClient {
           return {
             data: {
               id: nodeId,
+              label: field.properties.simpleName,
               properties: {
-                simpleName: field.properties.simpleName,
                 kind: field.properties.kind,
-                traces: [],
+                layer: field.labels[0] || '',
                 color: field.properties.color,
                 depth: Number(field.properties.depth),
                 selected: field.elementId === selectedId ? 'true' : 'false',
               },
-              labels: field.labels,
             },
           };
         }))
@@ -316,10 +315,9 @@ export class Neo4jClient {
             id: r.elementId,
             source: r.startNodeElementId,
             target: r.endNodeElementId,
-            label: r.type.toLowerCase(),
+            interaction: r.type.toLowerCase(),
             properties: {
               weight: 1,
-              traces: [],
             },
           },
         };
