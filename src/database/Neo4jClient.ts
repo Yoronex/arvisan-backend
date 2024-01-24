@@ -312,7 +312,13 @@ export class Neo4jClient {
         seenEdges.push(edgeId);
         return {
           data: {
-            id: r.elementId,
+            // Frontend has issues with removing and adding edges when changing the layer depth.
+            // This is because the edge ID does not change when changing the layer depth, but the
+            // source and target nodes do. Unfortunately, I was unable to reproduce the issue with
+            // a smaller graph (24-01-2024). So to force adding these completely different edges,
+            // we have to make sure the ID does not exist, so let's just add a random number to it
+            // to make sure all edges are new on a rerender.
+            id: `${r.elementId}--${Math.round((Math.random() * 10e12))}`,
             source: r.startNodeElementId,
             target: r.endNodeElementId,
             interaction: r.type.toLowerCase(),
