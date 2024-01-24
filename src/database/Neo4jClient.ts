@@ -346,10 +346,22 @@ export class Neo4jClient {
     // Filter the actual node objects
     nodes = nodes.filter((n) => nodesOnPaths.includes(n.data.id));
 
+    // Split the list of edges into "contain" edges and all other edges
+    const containEdges = edges.filter((e) => e.data.interaction === 'contains');
+    const dependencyEdges = edges.filter((e) => e.data.interaction !== 'contains');
+
+    // Replace every "contain" edge with a parent relationship, which is supported by Cytoscape.
+    // Then, we only return all the other edges and leave the contain edges out.
+    containEdges.forEach((e) => {
+      const target = nodes.find((n) => n.data.id === e.data.target);
+      if (!target) return;
+      target.data.parent = e.data.source;
+    });
+
     return {
       name,
       nodes,
-      edges,
+      edges: dependencyEdges,
     };
   }
 

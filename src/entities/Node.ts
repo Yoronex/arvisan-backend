@@ -7,6 +7,8 @@ export interface NodeData {
   id: string,
   /** Node label (name) */
   label: string,
+  /** ID of the parent node (if it exists) */
+  parent?: string;
   /** Custom properties of node */
   properties: {
     /** Type of node */
