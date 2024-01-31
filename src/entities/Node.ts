@@ -3,14 +3,23 @@ export interface Node {
 }
 
 export interface NodeData {
+  /** Unique node identifier */
   id: string,
-  labels: string[],
+  /** Node label (name) */
+  label: string,
+  /** ID of the parent node (if it exists) */
+  parent?: string;
+  /** Custom properties of node */
   properties: {
-    simpleName: string,
+    /** Type of node */
     kind: string,
-    traces: string[],
+    /** Layer this node is in */
+    layer: string,
+    /** Hex color this node should be */
     color: string,
+    /** Node layer depth */
     depth: number,
+    /** Whether this node is selected or not */
     selected: 'true' | 'false',
   },
 }

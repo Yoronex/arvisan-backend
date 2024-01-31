@@ -144,15 +144,14 @@ export class Neo4jClient {
           return {
             data: {
               id: nodeId,
+              label: field.properties.simpleName,
               properties: {
-                simpleName: field.properties.simpleName,
                 kind: field.properties.kind,
-                traces: [],
+                layer: field.labels[0] || '',
                 color: field.properties.color,
                 depth: Number(field.properties.depth),
                 selected: field.elementId === selectedId ? 'true' : 'false',
               },
-              labels: field.labels,
             },
           };
         }))
@@ -313,13 +312,18 @@ export class Neo4jClient {
         seenEdges.push(edgeId);
         return {
           data: {
-            id: r.elementId,
+            // Frontend has issues with removing and adding edges when changing the layer depth.
+            // This is because the edge ID does not change when changing the layer depth, but the
+            // source and target nodes do. Unfortunately, I was unable to reproduce the issue with
+            // a smaller graph (24-01-2024). So to force adding these completely different edges,
+            // we have to make sure the ID does not exist, so let's just add a random number to it
+            // to make sure all edges are new on a rerender.
+            id: `${r.elementId}--${Math.round((Math.random() * 10e12))}`,
             source: r.startNodeElementId,
             target: r.endNodeElementId,
-            label: r.type.toLowerCase(),
+            interaction: r.type.toLowerCase(),
             properties: {
               weight: 1,
-              traces: [],
             },
           },
         };
@@ -348,10 +352,22 @@ export class Neo4jClient {
     // Filter the actual node objects
     nodes = nodes.filter((n) => nodesOnPaths.includes(n.data.id));
 
+    // Split the list of edges into "contain" edges and all other edges
+    const containEdges = edges.filter((e) => e.data.interaction === 'contains');
+    const dependencyEdges = edges.filter((e) => e.data.interaction !== 'contains');
+
+    // Replace every "contain" edge with a parent relationship, which is supported by Cytoscape.
+    // Then, we only return all the other edges and leave the contain edges out.
+    containEdges.forEach((e) => {
+      const target = nodes.find((n) => n.data.id === e.data.target);
+      if (!target) return;
+      target.data.parent = e.data.source;
+    });
+
     return {
       name,
       nodes,
-      edges,
+      edges: dependencyEdges,
     };
   }
 
