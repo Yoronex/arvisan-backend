@@ -1,17 +1,11 @@
 import {
-  Body, Controller, Get, Post, Route, Tags,
+  Body, Controller, Post, Route, Tags,
 } from 'tsoa';
 import GraphVisualizationService, { QueryOptions } from '../services/GraphVisualizationService';
-import GraphPropertiesService from '../services/GraphPropertiesService';
 
 @Route('graph')
 @Tags('graph')
 export class GraphController extends Controller {
-  @Get('domains')
-  public async getAllDomains() {
-    return new GraphPropertiesService().getAllDomains();
-  }
-
   @Post('node')
   public async getNode(@Body() params: QueryOptions) {
     try {

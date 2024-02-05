@@ -1,5 +1,4 @@
 import neo4j, { Record } from 'neo4j-driver';
-import { Graph } from '../entities/Graph';
 
 export type Neo4jGraph = {
   source: any;
@@ -16,9 +15,9 @@ export class Neo4jClient {
    * @param processing
    * @private
    */
-  public async executeAndProcessQuery<T extends Neo4jGraph>(
+  public async executeAndProcessQuery<T extends Neo4jGraph, G>(
     query: string,
-    processing: (records: Array<Record<T>>) => Graph,
+    processing: (records: Array<Record<T>>) => G,
   ) {
     const session = this.driver.session();
     const result = await session.executeRead(
