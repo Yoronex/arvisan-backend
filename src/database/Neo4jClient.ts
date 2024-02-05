@@ -1,4 +1,4 @@
-import neo4j, { Record } from 'neo4j-driver';
+import neo4j, { Record, RecordShape } from 'neo4j-driver';
 
 export type Neo4jGraph = {
   source: any;
@@ -15,13 +15,13 @@ export class Neo4jClient {
    * @param processing
    * @private
    */
-  public async executeAndProcessQuery<T extends Neo4jGraph, G>(
+  public async executeAndProcessQuery<T extends RecordShape<PropertyKey, any>, G>(
     query: string,
     processing: (records: Array<Record<T>>) => G,
   ) {
     const session = this.driver.session();
     const result = await session.executeRead(
-      (tx) => tx.run<T>(query),
+      (tx) => tx.run(query),
       { timeout: 5000 },
     );
     await session.close();
