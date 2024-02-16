@@ -70,7 +70,7 @@ export default class GraphVisualizationService {
       if (dependencies) {
         query += 'RETURN DISTINCT selectedNode as source, r1 + r2 + reverse(r3) as path, parent as target';
       } else {
-        query += 'RETURN DISTINCT parent as source, reverse(r3) + r2 + r1 as path, selectedNode as target';
+        query += 'RETURN DISTINCT parent as source, r1 + r2 + reverse(r3) as path, selectedNode as target';
       }
       return query;
     };
@@ -92,7 +92,6 @@ export default class GraphVisualizationService {
       promises.push(this.client.executeAndProcessQuery(buildQuery(false), this.formatToLPG('All dependents and their parents', {
         selectedId: id,
         maxDepth: layerDepth,
-        reverseDirection: true,
         minRelationships: dependentRange?.min,
         maxRelationships: dependentRange?.max,
         selfEdges,

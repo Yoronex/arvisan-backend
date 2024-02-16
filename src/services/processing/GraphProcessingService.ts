@@ -186,7 +186,7 @@ export default class GraphProcessingService {
     options: GraphFilterOptions = {},
   ): Graph {
     const {
-      selectedId, maxDepth, reverseDirection,
+      selectedId, maxDepth,
       minRelationships, maxRelationships, selfEdges,
     } = options;
 
@@ -211,7 +211,7 @@ export default class GraphProcessingService {
       .map((record) => record.toObject())
       .map((record) => ({
         source: record.source,
-        chunks: this.groupRelationships(record.path, reverseDirection),
+        chunks: this.groupRelationships(record.path),
         target: record.target,
       }));
 
@@ -229,27 +229,21 @@ export default class GraphProcessingService {
           currDepth = seenPaths.get(pathId)!;
         }
 
-        if (reverseDirection) {
-          seenPaths.set(pathId, Math.max(currDepth, chunks[0].length));
-        } else {
-          seenPaths.set(pathId, Math.max(currDepth, chunks[chunks.length - 1].length));
-        }
+        seenPaths.set(pathId, Math.max(currDepth, chunks[chunks.length - 1].length));
+
         return record;
       }).filter((record) => {
         const { chunks } = record;
         const pathId = chunks.slice(1, chunks.length - 1).flat().map((e) => e.elementId).join(',');
         const depth = seenPaths.get(pathId) || 0;
 
-        if (reverseDirection) {
-          return chunks[0].length === depth;
-        }
         return chunks[chunks.length - 1].length === depth;
       });
 
     // Find the nodes that need to be replaced (and with which nodes).
     // Also, already remove the too-deep nodes
     if (maxDepth !== undefined) {
-      const replaceMap = this.getAbstractionMap(filteredRecords, maxDepth, reverseDirection);
+      const replaceMap = this.getAbstractionMap(filteredRecords, maxDepth);
       filteredRecords = filteredRecords.map((record): Neo4jComponentPathWithChunks => {
         const { chunks } = record;
         const toEdit = chunks.slice(1, chunks.length - 1);
@@ -280,19 +274,10 @@ export default class GraphProcessingService {
 
       if (chunks.length <= 1 || chunks[1].length === 0) return;
 
-      let node: string;
-      let relatedNode: string;
-      if (reverseDirection) {
-        const edge = chunks[chunks
-          .length - 2][chunks[chunks.length - 2].length - 1];
-        node = edge?.endNodeElementId;
-        relatedNode = edge?.startNodeElementId;
-      } else {
-        // eslint-disable-next-line prefer-destructuring
-        const edge = chunks[1][0]; // Last element of first chunk
-        node = edge?.startNodeElementId;
-        relatedNode = edge?.endNodeElementId;
-      }
+      // eslint-disable-next-line prefer-destructuring
+      const edge = chunks[1][0]; // Last element of first chunk
+      const node = edge?.startNodeElementId;
+      const relatedNode = edge?.endNodeElementId;
 
       if (!relationsMap.get(node)?.includes(relatedNode)) {
         const currentRelations = relationsMap.get(node) || [];
@@ -304,13 +289,7 @@ export default class GraphProcessingService {
     filteredRecords = filteredRecords.filter(({ chunks }) => {
       if (!minRelationships && !maxRelationships) return true;
 
-      let node: string;
-      if (reverseDirection) {
-        node = chunks[chunks
-          .length - 2][chunks[chunks.length - 2].length - 1]?.endNodeElementId;
-      } else {
-        node = chunks[1][0]?.startNodeElementId; // Last element of first chunk
-      }
+      const node = chunks[1][0]?.startNodeElementId; // Last element of first chunk
 
       const uniqueRelationships = relationsMap.get(node) || [];
       if (minRelationships && uniqueRelationships.length < minRelationships) return false;
