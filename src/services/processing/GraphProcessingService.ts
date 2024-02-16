@@ -167,6 +167,203 @@ export default class GraphProcessingService {
   }
 
   /**
+   * Given a list of records, return a list of all unique nodes in the records
+   * @param records
+   * @param selectedId
+   */
+  getAllNodes(records: Record<Neo4jComponentPath>[], selectedId?: string): Node[] {
+    const seenNodes: string[] = [];
+    return records
+      .map((r) => [r.get('source'), r.get('target')]
+        .map((field): Node | undefined => {
+          const nodeId = field.elementId;
+          if (seenNodes.indexOf(nodeId) >= 0) return undefined;
+          seenNodes.push(nodeId);
+          return {
+            data: this.formatNeo4jNodeToNodeData(field, selectedId),
+          };
+        }))
+      .flat()
+      .filter((node) => node !== undefined) as Node[];
+  }
+
+  /**
+   * Given a list of records, return a list of all edges in the records, all having weight 1.
+   * The resulting list might include duplicate edges.
+   * @param records
+   */
+  getAllEdges(records: Neo4jComponentPathWithChunks[]): Edge[] {
+    const seenEdges: string[] = [];
+    return records
+      .map((record) => record.chunks.flat().map((r): Edge | undefined => {
+        const edgeId = r.elementId;
+        if (seenEdges.indexOf(edgeId) >= 0) return undefined;
+        seenEdges.push(edgeId);
+        return {
+          data: this.formatNeo4jRelationshipToEdgeData(r),
+        };
+      }))
+      .flat()
+      .flat()
+      .filter((edge) => edge !== undefined)
+      // Typescript is being stupid, so set typing so all edges exist
+      .map((edge): Edge => edge!);
+  }
+
+  /**
+   * Given a list of edges, merge two edges with the same source and target node.
+   * The merged edge's weight will be the sum of both edge weights.
+   * @param edges
+   */
+  mergeDuplicateEdges(edges: Edge[]): Edge[] {
+    return edges.reduce((newEdges: Edge[], edge) => {
+      const index = newEdges.findIndex((e) => e.data.source === edge.data.source
+        && e.data.target === edge.data.target);
+      if (index < 0) return [...newEdges, edge];
+      // eslint-disable-next-line no-param-reassign
+      newEdges[index].data.properties.weight += 1;
+      return newEdges;
+    }, []);
+  }
+
+  /**
+   * Keep only the paths that go from selected node to the domain node of the relationship
+   * We have to delete any duplicates, because otherwise all these extra paths count towards
+   * the total number of relationship a leaf has.
+   * @param records
+   */
+  onlyKeepLongestPaths(records: Neo4jComponentPathWithChunks[]) {
+    const seenPaths = new Map<string, number>();
+    return records
+      .map((record) => {
+        const { chunks } = record;
+        // String that will uniquely identify this dependency (sequence).
+        const pathId = chunks.slice(1, chunks.length - 1).flat().map((e) => e.elementId).join(',');
+
+        let currDepth = 0;
+        if (seenPaths.has(pathId)) {
+          currDepth = seenPaths.get(pathId)!;
+        }
+
+        seenPaths.set(pathId, Math.max(currDepth, chunks[chunks.length - 1].length));
+
+        return record;
+      }).filter((record) => {
+        const { chunks } = record;
+        const pathId = chunks.slice(1, chunks.length - 1).flat().map((e) => e.elementId).join(',');
+        const depth = seenPaths.get(pathId) || 0;
+
+        return chunks[chunks.length - 1].length === depth;
+      });
+  }
+
+  /**
+   * Apply an abstraction based on the grouping (clustering) of the nodes
+   * @param records List of paths
+   * @param abstractionMap Mapping with which node ids should be abstracted to which node ids
+   */
+  applyAbstraction(records: Neo4jComponentPathWithChunks[], abstractionMap: Map<string, string>) {
+    return records.map((record): Neo4jComponentPathWithChunks => {
+      const { chunks } = record;
+      const toEdit = chunks.slice(1, chunks.length - 1);
+
+      return {
+        ...record,
+        chunks: [
+          chunks[0],
+          toEdit.map((chunk) => chunk.map((e): Neo4jComponentDependency => {
+            if (abstractionMap.has(e.startNodeElementId)) {
+              e.startNodeElementId = abstractionMap.get(e.startNodeElementId) as string;
+            }
+            if (abstractionMap.has(e.endNodeElementId)) {
+              e.endNodeElementId = abstractionMap.get(e.endNodeElementId) as string;
+            }
+            return e;
+          })).flat(),
+          chunks[chunks.length - 1],
+        ] as Neo4jComponentDependency[][],
+      };
+    });
+  }
+
+  /**
+   * Apply a filtering based on the amount of incoming and outgoing relationships
+   * @param records
+   * @param minRelationships
+   * @param maxRelationships
+   */
+  applyMinMaxRelationshipsFilter(
+    records: Neo4jComponentPathWithChunks[],
+    minRelationships?: number,
+    maxRelationships?: number,
+  ) {
+    // Count how many relationships each child of the selected node has
+    const relationsMap = new Map<string, string[]>();
+    records.forEach(({ chunks }) => {
+      if (!minRelationships && !maxRelationships) return;
+
+      if (chunks.length <= 1 || chunks[1].length === 0) return;
+
+      // eslint-disable-next-line prefer-destructuring
+      const edge = chunks[1][0]; // Last element of first chunk
+      const node = edge?.startNodeElementId;
+      const relatedNode = edge?.endNodeElementId;
+
+      if (!relationsMap.get(node)?.includes(relatedNode)) {
+        const currentRelations = relationsMap.get(node) || [];
+        relationsMap.set(node, [...currentRelations, relatedNode]);
+      }
+    });
+
+    // Apply filter
+    return records.filter(({ chunks }) => {
+      if (!minRelationships && !maxRelationships) return true;
+
+      const node = chunks[1][0]?.startNodeElementId; // Last element of first chunk
+
+      const uniqueRelationships = relationsMap.get(node) || [];
+      if (minRelationships && uniqueRelationships.length < minRelationships) return false;
+      if (maxRelationships && uniqueRelationships.length > maxRelationships) return false;
+      return true;
+    });
+  }
+
+  /**
+   * Only keep the nodes that are the start or end point of an edge
+   */
+  filterNodesByEdges(nodes: Node[], edges: Edge[]): Node[] {
+    const nodesOnPaths: string[] = edges
+      // Get the source and target from each edge
+      .map((e) => [e.data.source, e.data.target])
+      // Flatten the 2D array
+      .flat()
+      // Remove duplicates
+      .filter((n1, i, all) => i === all.findIndex((n2) => n1 === n2));
+    // Filter the actual node objects
+    return nodes.filter((n) => nodesOnPaths.includes(n.data.id));
+  }
+
+  /**
+   * Remove all self-edges (edges where the source and target is the same node)
+   */
+  filterSelfEdges(edges: Edge[]): Edge[] {
+    return edges.filter((e) => e.data.source !== e.data.target);
+  }
+
+  /**
+   * Replace every given edge with a parent relationship, which is supported by Cytoscape.
+   */
+  addParentRelationship(nodes: Node[], parentEdges: Edge[]): Node[] {
+    const nodesCopy: Node[] = [...nodes];
+    parentEdges.forEach((e) => {
+      const target = nodesCopy.find((n) => n.data.id === e.data.target);
+      if (!target) return;
+      target.data.parent = e.data.source;
+    });
+    return nodesCopy;
+  }
+
+  /**
    * Parse the given Neo4j query result to a LPG
    * @param records
    * @param name graph name
@@ -185,19 +382,7 @@ export default class GraphProcessingService {
     // Process the nodes at the beginning, because records that are no maximal path are deleted
     // Then, we lose crucial information on the nodes on these paths
     // We should filter these nodes later; only keep the nodes that lay on one or more paths
-    const seenNodes: string[] = [];
-    let nodes = records
-      .map((r) => [r.get('source'), r.get('target')]
-        .map((field): Node | undefined => {
-          const nodeId = field.elementId;
-          if (seenNodes.indexOf(nodeId) >= 0) return undefined;
-          seenNodes.push(nodeId);
-          return {
-            data: this.formatNeo4jNodeToNodeData(field, selectedId),
-          };
-        }))
-      .flat()
-      .filter((node) => node !== undefined) as Node[];
+    let nodes = this.getAllNodes(records, selectedId);
 
     const recordsToProcess: Neo4jComponentPathWithChunks[] = records
       .map((record) => record.toObject())
@@ -210,133 +395,32 @@ export default class GraphProcessingService {
     // Keep only the paths that go from selected node to the domain node of the relationship
     // We have to delete any duplicates, because otherwise all these extra paths count towards
     // the total number of relationship a leaf has.
-    const seenPaths = new Map<string, number>();
-    let filteredRecords = recordsToProcess
-      .map((record) => {
-        const { chunks } = record;
-        const pathId = chunks.slice(1, chunks.length - 1).flat().map((e) => e.elementId).join(',');
-
-        let currDepth = 0;
-        if (seenPaths.has(pathId)) {
-          currDepth = seenPaths.get(pathId)!;
-        }
-
-        seenPaths.set(pathId, Math.max(currDepth, chunks[chunks.length - 1].length));
-
-        return record;
-      }).filter((record) => {
-        const { chunks } = record;
-        const pathId = chunks.slice(1, chunks.length - 1).flat().map((e) => e.elementId).join(',');
-        const depth = seenPaths.get(pathId) || 0;
-
-        return chunks[chunks.length - 1].length === depth;
-      });
+    let filteredRecords = this.onlyKeepLongestPaths(recordsToProcess);
 
     // Find the nodes that need to be replaced (and with which nodes).
     // Also, already remove the too-deep nodes
     if (maxDepth !== undefined) {
       const replaceMap = this.getAbstractionMap(filteredRecords, maxDepth);
-      filteredRecords = filteredRecords.map((record): Neo4jComponentPathWithChunks => {
-        const { chunks } = record;
-        const toEdit = chunks.slice(1, chunks.length - 1);
-
-        return {
-          ...record,
-          chunks: [
-            chunks[0],
-            toEdit.map((chunk) => chunk.map((e): Neo4jComponentDependency => {
-              if (replaceMap.has(e.startNodeElementId)) {
-                e.startNodeElementId = replaceMap.get(e.startNodeElementId) as string;
-              }
-              if (replaceMap.has(e.endNodeElementId)) {
-                e.endNodeElementId = replaceMap.get(e.endNodeElementId) as string;
-              }
-              return e;
-            })).flat(),
-            chunks[chunks.length - 1],
-          ] as Neo4jComponentDependency[][],
-        };
-      });
+      filteredRecords = this.applyAbstraction(filteredRecords, replaceMap);
     }
 
     // Count how many relationships each child of the selected node has
-    const relationsMap = new Map<string, string[]>();
-    filteredRecords.forEach(({ chunks }) => {
-      if (!minRelationships && !maxRelationships) return;
+    filteredRecords = this
+      .applyMinMaxRelationshipsFilter(filteredRecords, minRelationships, maxRelationships);
 
-      if (chunks.length <= 1 || chunks[1].length === 0) return;
+    const edges = this.mergeDuplicateEdges(this.getAllEdges(filteredRecords));
 
-      // eslint-disable-next-line prefer-destructuring
-      const edge = chunks[1][0]; // Last element of first chunk
-      const node = edge?.startNodeElementId;
-      const relatedNode = edge?.endNodeElementId;
-
-      if (!relationsMap.get(node)?.includes(relatedNode)) {
-        const currentRelations = relationsMap.get(node) || [];
-        relationsMap.set(node, [...currentRelations, relatedNode]);
-      }
-    });
-
-    // Apply filter
-    filteredRecords = filteredRecords.filter(({ chunks }) => {
-      if (!minRelationships && !maxRelationships) return true;
-
-      const node = chunks[1][0]?.startNodeElementId; // Last element of first chunk
-
-      const uniqueRelationships = relationsMap.get(node) || [];
-      if (minRelationships && uniqueRelationships.length < minRelationships) return false;
-      if (maxRelationships && uniqueRelationships.length > maxRelationships) return false;
-      return true;
-    });
-
-    const seenEdges: string[] = [];
-    const edges = filteredRecords
-      .map((record) => record.chunks.flat().map((r): Edge | undefined => {
-        const edgeId = r.elementId;
-        if (seenEdges.indexOf(edgeId) >= 0) return undefined;
-        seenEdges.push(edgeId);
-        return {
-          data: this.formatNeo4jRelationshipToEdgeData(r),
-        };
-      }))
-      .flat()
-      .flat()
-      .filter((edge) => edge !== undefined)
-      // Typescript is being stupid, so set typing so all edges exist
-      .map((edge): Edge => edge!)
-      .reduce((newEdges: Edge[], edge) => {
-        const index = newEdges.findIndex((e) => e.data.source === edge.data.source
-          && e.data.target === edge.data.target);
-        if (index < 0) return [...newEdges, edge];
-        // eslint-disable-next-line no-param-reassign
-        newEdges[index].data.properties.weight += 1;
-        return newEdges;
-      }, []);
-
-    const nodesOnPaths: string[] = edges
-      // Get the source and target from each edge
-      .map((e) => [e.data.source, e.data.target])
-      // Flatten the 2D array
-      .flat()
-      // Remove duplicates
-      .filter((n1, i, all) => i === all.findIndex((n2) => n1 === n2));
-    // Filter the actual node objects
-    nodes = nodes.filter((n) => nodesOnPaths.includes(n.data.id));
+    nodes = this.filterNodesByEdges(nodes, edges);
 
     // Split the list of edges into "contain" edges and all other edges
     const containEdges = edges.filter((e) => e.data.interaction === 'contains');
     let dependencyEdges = edges.filter((e) => e.data.interaction !== 'contains');
 
     // Replace every "contain" edge with a parent relationship, which is supported by Cytoscape.
-    // Then, we only return all the other edges and leave the contain edges out.
-    containEdges.forEach((e) => {
-      const target = nodes.find((n) => n.data.id === e.data.target);
-      if (!target) return;
-      target.data.parent = e.data.source;
-    });
+    nodes = this.addParentRelationship(nodes, containEdges);
 
     if (selfEdges === false) {
-      dependencyEdges = dependencyEdges.filter((e) => e.data.source !== e.data.target);
+      dependencyEdges = this.filterSelfEdges(dependencyEdges);
     }
 
     return {

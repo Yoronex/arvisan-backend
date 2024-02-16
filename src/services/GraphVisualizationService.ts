@@ -31,11 +31,6 @@ export default class GraphVisualizationService {
     this.client = new Neo4jClient();
   }
 
-  private formatToLPG(name: string, options?: GraphFilterOptions) {
-    return (records: Record<Neo4jComponentPath>[]) => new GraphProcessingService()
-      .formatToLPG(records, name, options);
-  }
-
   private async getParents(id: string) {
     const query = `
       MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')<-[r:CONTAINS*0..5]-(selectedParent) 
@@ -78,8 +73,8 @@ export default class GraphVisualizationService {
     };
 
     const graphs: Graph[] = await Promise.all([
-      this.getChildren(id, layerDepth),
       this.getParents(id),
+      this.getChildren(id, layerDepth),
     ]);
     if (showDependencies) {
       const records = await this.client
