@@ -47,24 +47,16 @@ export default class GraphProcessingService {
 
   /**
    * Given a Neo4J relationship, format it to a CytoScape EdgeData format.
-   * @param r
-   * @param makeIdRandom Frontend has issues with removing and adding edges when changing the
-   * layer depth. This is because the edge ID does not change when changing the layer depth,
-   * but the source and target nodes do. Unfortunately, I was unable to reproduce the issue with
-   * a smaller graph (24-01-2024). So to force adding these completely different edges,
-   * we have to make sure the ID does not exist. If you enable this, a random number will be added
-   * to the edge ID to make sure all edges are new on a rerender.
+   * @param edge
    */
   public formatNeo4jRelationshipToEdgeData(
-    r: Neo4jComponentDependency,
-    makeIdRandom = false,
+    edge: Neo4jComponentDependency,
   ): EdgeData {
-    const id = makeIdRandom ? `${r.elementId}--${Math.round((Math.random() * 10e12))}` : r.elementId;
     return {
-      id,
-      source: r.startNodeElementId,
-      target: r.endNodeElementId,
-      interaction: r.type.toLowerCase(),
+      id: edge.elementId,
+      source: edge.startNodeElementId,
+      target: edge.endNodeElementId,
+      interaction: edge.type.toLowerCase(),
       properties: {
         weight: 1,
       },
@@ -304,7 +296,7 @@ export default class GraphProcessingService {
         if (seenEdges.indexOf(edgeId) >= 0) return undefined;
         seenEdges.push(edgeId);
         return {
-          data: this.formatNeo4jRelationshipToEdgeData(r, true),
+          data: this.formatNeo4jRelationshipToEdgeData(r),
         };
       }))
       .flat()
