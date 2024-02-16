@@ -1,6 +1,6 @@
-import { Graph } from '../entities/Graph';
-import { Edge } from '../entities/Edge';
-import { Node } from '../entities/Node';
+import { Graph } from '../../entities/Graph';
+import { Edge } from '../../entities/Edge';
+import { Node } from '../../entities/Node';
 
 export default class GraphPostProcessingService {
   private readonly _graph: Graph;

@@ -1,3 +1,5 @@
+import { NodeData } from './Node';
+
 export interface Edge {
   data: EdgeData,
 }
@@ -16,4 +18,11 @@ export interface EdgeData {
     /** Edge weight */
     weight: number,
   },
+}
+
+export interface ExtendedEdgeData extends EdgeData {
+  /** Source node object */
+  sourceNode: NodeData,
+  /** Target node object */
+  targetNode: NodeData,
 }

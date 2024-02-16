@@ -1,8 +1,13 @@
 import { Record } from 'neo4j-driver';
-import { Graph } from '../entities/Graph';
-import { Node } from '../entities/Node';
-import { Edge } from '../entities/Edge';
-import { Neo4jComponentDependency, Neo4jComponentPath, Neo4jComponentPathWithChunks } from '../database/entities';
+import { Graph, Edge } from '../../entities';
+import { Node, NodeData } from '../../entities/Node';
+import {
+  Neo4jComponentDependency,
+  Neo4jComponentNode,
+  Neo4jComponentPath,
+  Neo4jComponentPathWithChunks,
+} from '../../database/entities';
+import { EdgeData } from '../../entities/Edge';
 
 /**
  * @property selectedId - ID of the selected node to highlight it
@@ -21,6 +26,61 @@ export interface GraphFilterOptions {
 }
 
 export default class GraphProcessingService {
+  /**
+   * Given a Neo4j node, format it to a CytoScape NodeData object
+   * @param node
+   * @param selectedId
+   */
+  public formatNeo4jNodeToNodeData(node: Neo4jComponentNode, selectedId?: string): NodeData {
+    return {
+      id: node.elementId,
+      label: node.properties.simpleName,
+      properties: {
+        kind: node.properties.kind,
+        layer: node.labels[0] || '',
+        color: node.properties.color,
+        depth: Number(node.properties.depth),
+        selected: node.elementId === selectedId ? 'true' : 'false',
+      },
+    };
+  }
+
+  /**
+   * Given a Neo4J relationship, format it to a CytoScape EdgeData format.
+   * @param r
+   * @param makeIdRandom Frontend has issues with removing and adding edges when changing the
+   * layer depth. This is because the edge ID does not change when changing the layer depth,
+   * but the source and target nodes do. Unfortunately, I was unable to reproduce the issue with
+   * a smaller graph (24-01-2024). So to force adding these completely different edges,
+   * we have to make sure the ID does not exist. If you enable this, a random number will be added
+   * to the edge ID to make sure all edges are new on a rerender.
+   */
+  public formatNeo4jRelationshipToEdgeData(
+    r: Neo4jComponentDependency,
+    makeIdRandom = false,
+  ): EdgeData {
+    const id = makeIdRandom ? `${r.elementId}--${Math.round((Math.random() * 10e12))}` : r.elementId;
+    return {
+      id,
+      source: r.startNodeElementId,
+      target: r.endNodeElementId,
+      interaction: r.type.toLowerCase(),
+      properties: {
+        weight: 1,
+      },
+    };
+  }
+
+  /**
+   * Given a list of Neo4j relationships, split those relationships into a 2D list
+   * such that the first and last list only have "CONTAINS" relationships.
+   * This is necessary to traverse up and down the "tree" of nodes.
+   * If there are only "CONTAINS" relationships in the given list, the result will contain
+   * two lists, one with relationships going "down" and the other going "up".
+   * @param relationships
+   * @param reverseDirection
+   * @private
+   */
   private groupRelationships(
     relationships: Neo4jComponentDependency[],
     reverseDirection?: boolean,
@@ -65,6 +125,56 @@ export default class GraphProcessingService {
   }
 
   /**
+   * Given a complete Neo4j graph query result, create a mapping from module IDs
+   * to their abstractions
+   * @param records
+   * @param maxDepth
+   * @param reverseDirection
+   */
+  getAbstractionMap(
+    records: Neo4jComponentPathWithChunks[],
+    maxDepth: number,
+    reverseDirection?: boolean,
+  ): Map<string, string> {
+    // Replace all transitive nodes with this existing end node (the first of the full path)
+    const replaceMap = new Map<string, string>();
+    const addToReplaceMap = (deletedEdges: Neo4jComponentDependency[]) => {
+      if (deletedEdges.length === 0) return;
+      const firstStartNode = deletedEdges[0].startNodeElementId;
+      deletedEdges.forEach((edge) => replaceMap
+        .set(edge.endNodeElementId, firstStartNode));
+    };
+
+    records.forEach((record) => {
+      const { chunks } = record;
+
+      const containsSourceDepth = chunks[0][0]?.type.toLowerCase() === 'contains' ? chunks[0].length : 0;
+      const containsTargetDepth = chunks[chunks.length - 1][0]?.type.toLowerCase() === 'contains' ? chunks[chunks.length - 1].length : 0;
+      if (!reverseDirection) {
+        const containsTooDeep = Math.max(0, containsSourceDepth - maxDepth);
+
+        const deletedSource = chunks[0].splice(maxDepth, containsTooDeep);
+        addToReplaceMap(deletedSource);
+
+        const deletedTarget = chunks[chunks.length - 1]
+          .splice(containsTargetDepth - containsTooDeep, containsTooDeep);
+        addToReplaceMap(deletedTarget);
+      } else {
+        const containsTooDeep = Math.max(0, containsTargetDepth - maxDepth);
+
+        const deletedSource = chunks[0]
+          .splice(containsSourceDepth - containsTooDeep, containsTooDeep);
+        addToReplaceMap(deletedSource);
+
+        const deletedTarget = chunks[chunks.length - 1].splice(maxDepth, containsTooDeep);
+        addToReplaceMap(deletedTarget);
+      }
+    });
+
+    return replaceMap;
+  }
+
+  /**
    * Parse the given Neo4j query result to a LPG
    * @param records
    * @param name graph name
@@ -91,17 +201,7 @@ export default class GraphProcessingService {
           if (seenNodes.indexOf(nodeId) >= 0) return undefined;
           seenNodes.push(nodeId);
           return {
-            data: {
-              id: nodeId,
-              label: field.properties.simpleName,
-              properties: {
-                kind: field.properties.kind,
-                layer: field.labels[0] || '',
-                color: field.properties.color,
-                depth: Number(field.properties.depth),
-                selected: field.elementId === selectedId ? 'true' : 'false',
-              },
-            },
+            data: this.formatNeo4jNodeToNodeData(field, selectedId),
           };
         }))
       .flat()
@@ -146,46 +246,11 @@ export default class GraphProcessingService {
         return chunks[chunks.length - 1].length === depth;
       });
 
-    // Replace all transitive nodes with this existing end node (the first of the full path)
-    const replaceMap = new Map<string, string>();
-    const addToReplaceMap = (deletedEdges: Neo4jComponentDependency[]) => {
-      if (deletedEdges.length === 0) return;
-      const firstStartNode = deletedEdges[0].startNodeElementId;
-      deletedEdges.forEach((edge) => replaceMap
-        .set(edge.endNodeElementId, firstStartNode));
-    };
-
     // Find the nodes that need to be replaced (and with which nodes).
     // Also, already remove the too-deep nodes
     if (maxDepth !== undefined) {
+      const replaceMap = this.getAbstractionMap(filteredRecords, maxDepth, reverseDirection);
       filteredRecords = filteredRecords.map((record): Neo4jComponentPathWithChunks => {
-        const { chunks } = record;
-
-        const containsSourceDepth = chunks[0][0]?.type.toLowerCase() === 'contains' ? chunks[0].length : 0;
-        const containsTargetDepth = chunks[chunks.length - 1][0]?.type.toLowerCase() === 'contains' ? chunks[chunks.length - 1].length : 0;
-        if (!reverseDirection) {
-          const containsTooDeep = Math.max(0, containsSourceDepth - maxDepth);
-
-          const deletedSource = chunks[0].splice(maxDepth, containsTooDeep);
-          addToReplaceMap(deletedSource);
-
-          const deletedTarget = chunks[chunks.length - 1]
-            .splice(containsTargetDepth - containsTooDeep, containsTooDeep);
-          addToReplaceMap(deletedTarget);
-        } else {
-          const containsTooDeep = Math.max(0, containsTargetDepth - maxDepth);
-
-          const deletedSource = chunks[0]
-            .splice(containsSourceDepth - containsTooDeep, containsTooDeep);
-          addToReplaceMap(deletedSource);
-
-          const deletedTarget = chunks[chunks.length - 1].splice(maxDepth, containsTooDeep);
-          addToReplaceMap(deletedTarget);
-        }
-
-        return record;
-        // Replace the source and target nodes of the dependency edges to make them transitive
-      }).map((record): Neo4jComponentPathWithChunks => {
         const { chunks } = record;
         const toEdit = chunks.slice(1, chunks.length - 1);
 
@@ -260,21 +325,7 @@ export default class GraphProcessingService {
         if (seenEdges.indexOf(edgeId) >= 0) return undefined;
         seenEdges.push(edgeId);
         return {
-          data: {
-            // Frontend has issues with removing and adding edges when changing the layer depth.
-            // This is because the edge ID does not change when changing the layer depth, but the
-            // source and target nodes do. Unfortunately, I was unable to reproduce the issue with
-            // a smaller graph (24-01-2024). So to force adding these completely different edges,
-            // we have to make sure the ID does not exist, so let's just add a random number to it
-            // to make sure all edges are new on a rerender.
-            id: `${r.elementId}--${Math.round((Math.random() * 10e12))}`,
-            source: r.startNodeElementId,
-            target: r.endNodeElementId,
-            interaction: r.type.toLowerCase(),
-            properties: {
-              weight: 1,
-            },
-          },
+          data: this.formatNeo4jRelationshipToEdgeData(r, true),
         };
       }))
       .flat()

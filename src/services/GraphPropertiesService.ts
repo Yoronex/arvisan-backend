@@ -1,6 +1,6 @@
-import { Node, Record } from 'neo4j-driver';
+import { Record } from 'neo4j-driver';
 import { Neo4jClient } from '../database/Neo4jClient';
-import GraphProcessingService from './GraphProcessingService';
+import GraphProcessingService from './processing/GraphProcessingService';
 import { Neo4jComponentPath } from '../database/entities';
 import { Domain } from '../entities';
 

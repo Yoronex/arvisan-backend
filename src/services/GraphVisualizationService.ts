@@ -1,9 +1,9 @@
 import { Record } from 'neo4j-driver';
 import { Neo4jClient } from '../database/Neo4jClient';
-import { Graph } from '../entities/Graph';
-import GraphProcessingService, { GraphFilterOptions } from './GraphProcessingService';
+import { Graph } from '../entities';
+import GraphProcessingService, { GraphFilterOptions } from './processing/GraphProcessingService';
 import { Neo4jComponentPath } from '../database/entities';
-import GraphPostProcessingService from './GraphPostProcessingService';
+import GraphPostProcessingService from './processing/GraphPostProcessingService';
 
 export interface QueryOptions {
   id: string;
