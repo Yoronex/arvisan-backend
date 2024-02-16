@@ -1,24 +1,16 @@
 import neo4j, { Record, RecordShape } from 'neo4j-driver';
 
-export type Neo4jGraph = {
-  source: any;
-  path: any[];
-  target: any;
-};
-
 export class Neo4jClient {
   private driver = neo4j.driver(process.env.NEO4J_URL || '', neo4j.auth.basic(process.env.NEO4J_USERNAME || '', process.env.NEO4J_PASSWORD || ''));
 
   /**
    * Execute the given query and process the results
    * @param query
-   * @param processing
    * @private
    */
-  public async executeAndProcessQuery<T extends RecordShape<PropertyKey, any>, G>(
+  public async executeQuery<T extends RecordShape>(
     query: string,
-    processing: (records: Array<Record<T>>) => G,
-  ) {
+  ): Promise<Array<Record<T>>> {
     const session = this.driver.session();
     const result = await session.executeRead(
       (tx) => tx.run(query),
@@ -26,7 +18,7 @@ export class Neo4jClient {
     );
     await session.close();
 
-    return processing(result.records);
+    return result.records;
   }
 
   async destroy() {

@@ -49,6 +49,8 @@ export default class GraphViolationService {
       YIELD path
       RETURN path
     `;
-    return this.client.executeAndProcessQuery(query, this.formatDependencyCycles.bind(this));
+    const records = await this.client
+      .executeQuery<Neo4jDependencyPath>(query);
+    return this.formatDependencyCycles(records);
   }
 }

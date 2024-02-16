@@ -40,14 +40,16 @@ export default class GraphVisualizationService {
     const query = `
       MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')<-[r:CONTAINS*0..5]-(selectedParent) 
       RETURN selectedNode as source, r as path, selectedParent as target`;
-    return this.client.executeAndProcessQuery(query, this.formatToLPG('All parents', { selectedId: id }));
+    const records = await this.client.executeQuery<Neo4jComponentPath>(query);
+    return new GraphProcessingService().formatToLPG(records, 'All parents', { selectedId: id });
   }
 
   private async getChildren(id: string, depth: number) {
     const query = `
       MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')-[r:CONTAINS*0..${depth}]->(moduleOrLayer) 
       RETURN selectedNode as source, r as path, moduleOrLayer as target`;
-    return this.client.executeAndProcessQuery(query, this.formatToLPG('All sublayers and modules', { selectedId: id }));
+    const records = await this.client.executeQuery<Neo4jComponentPath>(query);
+    return new GraphProcessingService().formatToLPG(records, 'All sublayers and modules', { selectedId: id });
   }
 
   public async getGraphFromSelectedNode({
@@ -75,30 +77,35 @@ export default class GraphVisualizationService {
       return query;
     };
 
-    const promises: Promise<Graph>[] = [
+    const graphs: Graph[] = await Promise.all([
       this.getChildren(id, layerDepth),
       this.getParents(id),
-    ];
+    ]);
     if (showDependencies) {
-      promises.push(this.client.executeAndProcessQuery(buildQuery(true), this.formatToLPG('All dependencies and their parents', {
+      const records = await this.client
+        .executeQuery<Neo4jComponentPath>(buildQuery(true));
+      const dependencyGraph = new GraphProcessingService().formatToLPG(records, 'All dependencies and their parents', {
         selectedId: id,
         maxDepth: layerDepth,
         minRelationships: dependencyRange?.min,
         maxRelationships: dependencyRange?.max,
         selfEdges,
-      })));
+      });
+      graphs.push(dependencyGraph);
     }
     if (showDependents) {
-      promises.push(this.client.executeAndProcessQuery(buildQuery(false), this.formatToLPG('All dependents and their parents', {
+      const records = await this.client
+        .executeQuery<Neo4jComponentPath>(buildQuery(false));
+      const dependentGraph = new GraphProcessingService().formatToLPG(records, 'All dependents and their parents', {
         selectedId: id,
         maxDepth: layerDepth,
         minRelationships: dependentRange?.min,
         maxRelationships: dependentRange?.max,
         selfEdges,
-      })));
+      });
+      graphs.push(dependentGraph);
     }
 
-    const graphs = await Promise.all(promises);
     await this.client.destroy();
 
     return new GraphPostProcessingService(...graphs).graph;
