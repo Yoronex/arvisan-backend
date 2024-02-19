@@ -26,7 +26,7 @@ export default class GraphPropertiesService {
     const { nodes, edges } = new GraphProcessingService().formatToLPG(records, 'All domains', {
       maxDepth: 0,
       selfEdges: true,
-    });
+    }).graph;
 
     return nodes.map((node): Domain => ({
       ...node.data,

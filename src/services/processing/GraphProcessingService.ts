@@ -221,9 +221,26 @@ export default class GraphProcessingService {
         && e.data.target === edge.data.target);
       if (index < 0) return [...newEdges, edge];
       // eslint-disable-next-line no-param-reassign
-      newEdges[index].data.properties.weight += 1;
+      newEdges[index].data.properties.weight += edge.data.properties.weight;
       return newEdges;
     }, []);
+  }
+
+  /**
+   * Return the given records, but split/group the relationships into chunks of the same
+   * type of relationship. See also this.groupRelationships().
+   * @param records
+   */
+  splitRelationshipsIntoChunks(
+    records: Record<Neo4jComponentPath>[],
+  ): Neo4jComponentPathWithChunks[] {
+    return records
+      .map((record) => record.toObject())
+      .map((record) => ({
+        source: record.source,
+        chunks: this.groupRelationships(record.path),
+        target: record.target,
+      }));
   }
 
   /**
@@ -373,7 +390,7 @@ export default class GraphProcessingService {
     records: Record<Neo4jComponentPath>[],
     name: string,
     options: GraphFilterOptions = {},
-  ): Graph {
+  ) {
     const {
       selectedId, maxDepth,
       minRelationships, maxRelationships, selfEdges,
@@ -384,13 +401,7 @@ export default class GraphProcessingService {
     // We should filter these nodes later; only keep the nodes that lay on one or more paths
     let nodes = this.getAllNodes(records, selectedId);
 
-    const recordsToProcess: Neo4jComponentPathWithChunks[] = records
-      .map((record) => record.toObject())
-      .map((record) => ({
-        source: record.source,
-        chunks: this.groupRelationships(record.path),
-        target: record.target,
-      }));
+    const recordsToProcess = this.splitRelationshipsIntoChunks(records);
 
     // Keep only the paths that go from selected node to the domain node of the relationship
     // We have to delete any duplicates, because otherwise all these extra paths count towards
@@ -399,8 +410,9 @@ export default class GraphProcessingService {
 
     // Find the nodes that need to be replaced (and with which nodes).
     // Also, already remove the too-deep nodes
+    let replaceMap: Map<string, string> | undefined;
     if (maxDepth !== undefined) {
-      const replaceMap = this.getAbstractionMap(filteredRecords, maxDepth);
+      replaceMap = this.getAbstractionMap(filteredRecords, maxDepth);
       filteredRecords = this.applyAbstraction(filteredRecords, replaceMap);
     }
 
@@ -423,10 +435,15 @@ export default class GraphProcessingService {
       dependencyEdges = this.filterSelfEdges(dependencyEdges);
     }
 
-    return {
+    const graph: Graph = {
       name,
       nodes,
       edges: dependencyEdges,
+    };
+
+    return {
+      graph,
+      replaceMap,
     };
   }
 }

@@ -1,19 +1,31 @@
 import {
-  Body, Controller, Post, Route, Tags,
+  Body, Controller, Post, Route, Tags, Response, Res,
 } from 'tsoa';
+import { TsoaResponse } from '@tsoa/runtime';
 import GraphVisualizationService, { QueryOptions } from '../services/GraphVisualizationService';
+import { Graph } from '../entities';
+import Violations from '../entities/violations';
+import { GraphWithViolations } from '../entities/Graph';
+
+interface ErrorResponse {
+  message: string;
+}
 
 @Route('graph')
 @Tags('Graph')
 export class GraphController extends Controller {
   @Post('node')
-  public async getNode(@Body() params: QueryOptions) {
+  @Response<ErrorResponse>(400, 'Invalid query')
+  public async getNode(
+    @Body() params: QueryOptions,
+      @Res() errorResponse: TsoaResponse<400, ErrorResponse>,
+  ): Promise<GraphWithViolations> {
     try {
       return await new GraphVisualizationService().getGraphFromSelectedNode(params);
     } catch (e: any) {
       if (e.name === 'Neo4jError' && e.code === 'Neo.ClientError.Transaction.TransactionTimedOutClientConfiguration') {
         this.setStatus(400);
-        return { message: 'Query is too big to finish in 5 seconds' };
+        errorResponse(400, { message: 'Query is too big to finish in 5 seconds' });
       }
       throw e;
     }

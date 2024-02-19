@@ -6,13 +6,15 @@ import GraphProcessingService from './processing/GraphProcessingService';
 import { ExtendedEdgeData } from '../entities/Edge';
 
 interface Neo4jDependencyPath {
-  start: Neo4jComponentNode,
-  end: Neo4jComponentNode,
-  segments: {
+  path: {
     start: Neo4jComponentNode,
-    relationship: Neo4jComponentDependency,
     end: Neo4jComponentNode,
-  }[]
+    segments: {
+      start: Neo4jComponentNode,
+      relationship: Neo4jComponentDependency,
+      end: Neo4jComponentNode,
+    }[],
+  },
 }
 
 export default class GraphViolationService {
@@ -20,8 +22,8 @@ export default class GraphViolationService {
 
   private readonly graphProcessingService: GraphProcessingService;
 
-  constructor() {
-    this.client = new Neo4jClient();
+  constructor(client?: Neo4jClient) {
+    this.client = client ?? new Neo4jClient();
     this.graphProcessingService = new GraphProcessingService();
   }
 
@@ -29,21 +31,23 @@ export default class GraphViolationService {
     records: Record<Neo4jDependencyPath>[],
   ): DependencyCycle[] {
     return records.map((r): DependencyCycle => {
-      const start = r.get('start');
+      const { start, segments } = r.get('path');
       return {
         node: this.graphProcessingService.formatNeo4jNodeToNodeData(start),
-        path: r.get('segments').map((s): ExtendedEdgeData => ({
+        path: segments.map((s): ExtendedEdgeData => ({
           ...this.graphProcessingService.formatNeo4jRelationshipToEdgeData(s.relationship),
           sourceNode: this.graphProcessingService.formatNeo4jNodeToNodeData(s.start),
           targetNode: this.graphProcessingService.formatNeo4jNodeToNodeData(s.end),
         })),
+        length: segments.length,
       };
     });
   }
 
-  public async getDependencyCycles(elementIds: string[]): Promise<DependencyCycle[]> {
+  public async getDependencyCycles(elementIds?: string[]): Promise<DependencyCycle[]> {
+    const whereClause = elementIds ? `WHERE elementId(n) IN [${elementIds.join(',')}]` : '';
     const query = `
-      MATCH (n WHERE elementId(n) IN [${elementIds.join(',')}])
+      MATCH (n ${whereClause})
       WITH collect(n) as nodes
       CALL apoc.nodes.cycles(nodes)
       YIELD path
