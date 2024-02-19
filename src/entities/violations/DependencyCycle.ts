@@ -9,4 +9,5 @@ export interface DependencyCycle {
 
 export interface DependencyCycleRender extends DependencyCycle {
   actualCycles: DependencyCycle[];
+  id: string;
 }

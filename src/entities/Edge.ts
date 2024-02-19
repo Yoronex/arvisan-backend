@@ -17,6 +17,8 @@ export interface EdgeData {
   properties: {
     /** Edge weight */
     weight: number,
+    /** Whether this edge is some architectural violation */
+    violation: 'true' | 'false';
   },
 }
 

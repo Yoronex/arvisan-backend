@@ -4,10 +4,8 @@ import GraphProcessingService from './processing/GraphProcessingService';
 import { Neo4jComponentPath } from '../database/entities';
 import GraphPostProcessingService from './processing/GraphPostProcessingService';
 import GraphViolationService from './GraphViolationService';
-import Violations, { DependencyCycle } from '../entities/violations';
-import { ExtendedEdgeData } from '../entities/Edge';
+import Violations from '../entities/violations';
 import { GraphWithViolations } from '../entities/Graph';
-import { DependencyCycleRender } from '../entities/violations/DependencyCycle';
 
 export interface QueryOptions {
   id: string;
@@ -115,61 +113,8 @@ export default class GraphVisualizationService {
     const violationService = new GraphViolationService(this.client);
 
     const cyclicalDependencies = await violationService.getDependencyCycles();
-    const formattedCyclDeps = cyclicalDependencies.map((dep) => {
-      const newDep: DependencyCycleRender = { ...dep, actualCycles: [dep] };
-
-      const replaceId = replaceMaps.get(dep.node.id);
-      const replaceNode = graph.nodes.find((n) => n.data.id === replaceId);
-      if (replaceNode) {
-        newDep.node = replaceNode.data;
-      }
-
-      newDep.path = newDep.path.map((e) => {
-        const newEdge: ExtendedEdgeData = { ...e };
-        const replaceSource = replaceMaps.get(e.source);
-        const replaceSourceNode = graph.nodes.find((n) => n.data.id === replaceSource);
-        const replaceTarget = replaceMaps.get(e.target);
-        const replaceTargetNode = graph.nodes.find((n) => n.data.id === replaceTarget);
-        if (replaceSource && replaceSourceNode) {
-          newEdge.source = replaceSource;
-          newEdge.sourceNode = replaceSourceNode.data;
-        }
-        if (replaceTarget && replaceTargetNode) {
-          newEdge.target = replaceTarget;
-          newEdge.targetNode = replaceTargetNode.data;
-        }
-        return newEdge;
-      }).map((d) => {
-        // The abstracted edge exists in the graph, but possible with a different ID.
-        // Therefore, we should use the same edge ID to make sure it is rendered
-        // correctly in the frontend.
-        const graphEdge = graph.edges
-          .find((e) => e.data.source === d.source && e.data.target === d.target);
-        if (graphEdge) {
-          return {
-            ...d,
-            id: graphEdge.data.id,
-          };
-        }
-        return d;
-      }).filter((e, index) => {
-        if (index === 0) return true;
-        return e.source !== e.target;
-      });
-
-      return newDep;
-    }).filter((d) => !!graph.nodes.find((n) => n.data.id === d.node.id))
-      .reduce((violations: DependencyCycleRender[], d, i, all) => {
-        const cycleIndex = (d1: DependencyCycle) => `${d1.node.id}--${d1.path.map((p) => p.id).join('-')}`;
-        const index = violations.findIndex((d1) => cycleIndex(d1) === cycleIndex(d));
-        if (index >= 0) {
-          // eslint-disable-next-line no-param-reassign
-          violations[index].actualCycles = violations[index].actualCycles.concat(d.actualCycles);
-        } else {
-          violations.push(d);
-        }
-        return violations;
-      }, []);
+    const formattedCyclDeps = violationService
+      .extractAndAbstractDependencyCycles(cyclicalDependencies, graph, replaceMaps);
 
     const violations: Violations = {
       dependencyCycles: formattedCyclDeps,

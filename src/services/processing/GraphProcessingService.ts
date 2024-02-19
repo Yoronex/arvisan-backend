@@ -59,6 +59,7 @@ export default class GraphProcessingService {
       interaction: edge.type.toLowerCase(),
       properties: {
         weight: 1,
+        violation: 'false',
       },
     };
   }
