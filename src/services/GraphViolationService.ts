@@ -2,11 +2,11 @@ import { Record } from 'neo4j-driver';
 import { Neo4jClient } from '../database/Neo4jClient';
 import { DependencyCycle } from '../entities/violations';
 import { Neo4jComponentDependency, Neo4jComponentNode } from '../database/entities';
-import GraphProcessingService from './processing/GraphProcessingService';
 import { ExtendedEdgeData } from '../entities/Edge';
 import { LayerViolation, LayerViolationSpec } from '../entities/violations/LayerViolation';
 import { DependencyCycleRender } from '../entities/violations/DependencyCycle';
 import { Graph, Node } from '../entities';
+import GraphElementParserService from './processing/GraphElementParserService';
 
 interface Neo4jDependencyPath {
   path: {
@@ -28,11 +28,8 @@ interface Neo4jViolation {
 export default class GraphViolationService {
   private readonly client: Neo4jClient;
 
-  private readonly graphProcessingService: GraphProcessingService;
-
   constructor(client?: Neo4jClient) {
     this.client = client ?? new Neo4jClient();
-    this.graphProcessingService = new GraphProcessingService();
   }
 
   private formatDependencyCycles(
@@ -41,11 +38,11 @@ export default class GraphViolationService {
     return records.map((r): DependencyCycle => {
       const { start, segments } = r.get('path');
       return {
-        node: this.graphProcessingService.formatNeo4jNodeToNodeData(start),
+        node: GraphElementParserService.formatNeo4jNodeToNodeData(start),
         path: segments.map((s): ExtendedEdgeData => ({
-          ...this.graphProcessingService.formatNeo4jRelationshipToEdgeData(s.relationship),
-          sourceNode: this.graphProcessingService.formatNeo4jNodeToNodeData(s.start),
-          targetNode: this.graphProcessingService.formatNeo4jNodeToNodeData(s.end),
+          ...GraphElementParserService.formatNeo4jRelationshipToEdgeData(s.relationship),
+          sourceNode: GraphElementParserService.formatNeo4jNodeToNodeData(s.start),
+          targetNode: GraphElementParserService.formatNeo4jNodeToNodeData(s.end),
         })),
         length: segments.length,
       };
