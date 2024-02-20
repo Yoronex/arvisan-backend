@@ -1,12 +1,16 @@
 import { Record } from 'neo4j-driver';
-import { Graph, Node, Edge } from '../../entities';
 import {
-  Neo4jComponentDependency,
-  Neo4jComponentPath,
-  Neo4jComponentPathWithChunks,
-} from '../../database/entities';
+  Edge, Graph, Neo4jComponentPathWithChunks, Node,
+} from '../../entities';
+import { Neo4jComponentDependency, Neo4jComponentPath } from '../../database/entities';
 import GraphElementParserService from './GraphElementParserService';
 import GraphPreProcessingService from './GraphPreProcessingService';
+import { Neo4jDependencyType } from '../../entities/Neo4jComponentPathWithChunks';
+
+export interface Range {
+  min: number;
+  max: number;
+}
 
 /**
  * @property selectedId - ID of the selected node to highlight it
@@ -19,8 +23,8 @@ export interface GraphFilterOptions {
   selectedId?: string;
   reverseDirection?: boolean;
   maxDepth?: number;
-  minRelationships?: number;
-  maxRelationships?: number;
+  dependencyRange?: Partial<Range>;
+  dependentRange?: Partial<Range>;
   selfEdges?: boolean;
 }
 
@@ -30,12 +34,10 @@ export default class GraphProcessingService {
    * to their abstractions
    * @param records
    * @param maxDepth
-   * @param reverseDirection
    */
   getAbstractionMap(
     records: Neo4jComponentPathWithChunks[],
     maxDepth: number,
-    reverseDirection?: boolean,
   ): Map<string, string> {
     // Replace all transitive nodes with this existing end node (the first of the full path)
     const replaceMap = new Map<string, string>();
@@ -47,29 +49,16 @@ export default class GraphProcessingService {
     };
 
     records.forEach((record) => {
-      const { chunks } = record;
+      const containsSourceDepth = record.sourceDepth;
+      const containsTargetDepth = record.targetDepth;
+      const containsTooDeep = Math.max(0, containsSourceDepth - maxDepth);
 
-      const containsSourceDepth = chunks[0][0]?.type.toLowerCase() === 'contains' ? chunks[0].length : 0;
-      const containsTargetDepth = chunks[chunks.length - 1][0]?.type.toLowerCase() === 'contains' ? chunks[chunks.length - 1].length : 0;
-      if (!reverseDirection) {
-        const containsTooDeep = Math.max(0, containsSourceDepth - maxDepth);
+      const deletedSource = record.containSourceEdges.splice(maxDepth, containsTooDeep);
+      addToReplaceMap(deletedSource);
 
-        const deletedSource = chunks[0].splice(maxDepth, containsTooDeep);
-        addToReplaceMap(deletedSource);
-
-        const deletedTarget = chunks[chunks.length - 1]
-          .splice(containsTargetDepth - containsTooDeep, containsTooDeep);
-        addToReplaceMap(deletedTarget);
-      } else {
-        const containsTooDeep = Math.max(0, containsTargetDepth - maxDepth);
-
-        const deletedSource = chunks[0]
-          .splice(containsSourceDepth - containsTooDeep, containsTooDeep);
-        addToReplaceMap(deletedSource);
-
-        const deletedTarget = chunks[chunks.length - 1].splice(maxDepth, containsTooDeep);
-        addToReplaceMap(deletedTarget);
-      }
+      const deletedTarget = record.containTargetEdges
+        .splice(containsTargetDepth - containsTooDeep, containsTooDeep);
+      addToReplaceMap(deletedTarget);
     });
 
     return replaceMap;
@@ -83,7 +72,7 @@ export default class GraphProcessingService {
   getAllEdges(records: Neo4jComponentPathWithChunks[]): Edge[] {
     const seenEdges: string[] = [];
     return records
-      .map((record) => record.chunks.flat().map((r): Edge | undefined => {
+      .map((record) => record.allEdges.map((r): Edge | undefined => {
         const edgeId = r.elementId;
         if (seenEdges.indexOf(edgeId) >= 0) return undefined;
         seenEdges.push(edgeId);
@@ -121,50 +110,53 @@ export default class GraphProcessingService {
    */
   applyAbstraction(records: Neo4jComponentPathWithChunks[], abstractionMap: Map<string, string>) {
     return records.map((record): Neo4jComponentPathWithChunks => {
-      const { chunks } = record;
-      const toEdit = chunks.slice(1, chunks.length - 1);
-
-      return {
-        ...record,
-        chunks: [
-          chunks[0],
-          toEdit.map((chunk) => chunk.map((e): Neo4jComponentDependency => {
-            if (abstractionMap.has(e.startNodeElementId)) {
-              e.startNodeElementId = abstractionMap.get(e.startNodeElementId) as string;
-            }
-            if (abstractionMap.has(e.endNodeElementId)) {
-              e.endNodeElementId = abstractionMap.get(e.endNodeElementId) as string;
-            }
-            return e;
-          })).flat(),
-          chunks[chunks.length - 1],
-        ] as Neo4jComponentDependency[][],
-      };
+      // eslint-disable-next-line no-param-reassign
+      record.dependencyEdges = record.dependencyEdges
+        .map((chunk) => chunk.map((e): Neo4jComponentDependency => {
+          if (abstractionMap.has(e.startNodeElementId)) {
+            e.startNodeElementId = abstractionMap.get(e.startNodeElementId) as string;
+          }
+          if (abstractionMap.has(e.endNodeElementId)) {
+            e.endNodeElementId = abstractionMap.get(e.endNodeElementId) as string;
+          }
+          return e;
+        }));
+      return record;
     });
   }
 
   /**
    * Apply a filtering based on the amount of incoming and outgoing relationships
    * @param records
+   * @param outgoing Count outgoing relationships, i.e. dependencies
    * @param minRelationships
    * @param maxRelationships
    */
   applyMinMaxRelationshipsFilter(
     records: Neo4jComponentPathWithChunks[],
+    outgoing = true,
     minRelationships?: number,
     maxRelationships?: number,
   ) {
     // Count how many relationships each child of the selected node has
     const relationsMap = new Map<string, string[]>();
-    records.forEach(({ chunks }) => {
+    records.forEach((record) => {
       if (!minRelationships && !maxRelationships) return;
 
-      if (chunks.length <= 1 || chunks[1].length === 0) return;
-
       // eslint-disable-next-line prefer-destructuring
-      const edge = chunks[1][0]; // Last element of first chunk
-      const node = edge?.startNodeElementId;
-      const relatedNode = edge?.endNodeElementId;
+      const edge = record.dependencyEdges.flat()[0]; // Last element of first chunk
+      const isDependency = record.type === Neo4jDependencyType.DEPENDENCY;
+      let node: string;
+      let relatedNode: string;
+      if ((outgoing && isDependency) || (!outgoing && !isDependency)) {
+        node = edge?.startNodeElementId;
+        relatedNode = edge?.endNodeElementId;
+      } else {
+        node = edge?.endNodeElementId;
+        relatedNode = edge?.startNodeElementId;
+      }
+
+      if (!relatedNode) return;
 
       if (!relationsMap.get(node)?.includes(relatedNode)) {
         const currentRelations = relationsMap.get(node) || [];
@@ -173,10 +165,10 @@ export default class GraphProcessingService {
     });
 
     // Apply filter
-    return records.filter(({ chunks }) => {
+    return records.filter((record) => {
       if (!minRelationships && !maxRelationships) return true;
 
-      const node = chunks[1][0]?.startNodeElementId; // Last element of first chunk
+      const node = record.selectedModuleElementId;
 
       const uniqueRelationships = relationsMap.get(node) || [];
       if (minRelationships && uniqueRelationships.length < minRelationships) return false;
@@ -251,7 +243,7 @@ export default class GraphProcessingService {
   ) {
     const {
       selectedId, maxDepth,
-      minRelationships, maxRelationships, selfEdges,
+      dependentRange, dependencyRange, selfEdges,
     } = options;
 
     const preprocessor = new GraphPreProcessingService(records, selectedId);
@@ -266,10 +258,21 @@ export default class GraphProcessingService {
     }
 
     // Count how many relationships each child of the selected node has
-    filteredRecords = this
-      .applyMinMaxRelationshipsFilter(filteredRecords, minRelationships, maxRelationships);
+    filteredRecords = this.applyMinMaxRelationshipsFilter(
+      filteredRecords,
+      true,
+      dependencyRange?.min,
+      dependencyRange?.max,
+    );
+    filteredRecords = this.applyMinMaxRelationshipsFilter(
+      filteredRecords,
+      false,
+      dependentRange?.min,
+      dependentRange?.max,
+    );
 
-    const edges = this.mergeDuplicateEdges(this.getAllEdges(filteredRecords));
+    let edges = this.getAllEdges(filteredRecords);
+    edges = this.mergeDuplicateEdges(edges);
 
     nodes = this.filterNodesByEdges(nodes, edges);
 

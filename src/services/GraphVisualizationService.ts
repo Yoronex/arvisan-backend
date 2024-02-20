@@ -1,7 +1,7 @@
 import { Record } from 'neo4j-driver';
 import { Neo4jClient } from '../database/Neo4jClient';
-import { Graph } from '../entities';
-import GraphProcessingService, { GraphFilterOptions } from './processing/GraphProcessingService';
+import { Graph, Neo4jComponentPathWithChunks } from '../entities';
+import GraphProcessingService, { GraphFilterOptions, Range } from './processing/GraphProcessingService';
 import { Neo4jComponentPath } from '../database/entities';
 import GraphPostProcessingService from './processing/GraphPostProcessingService';
 import GraphViolationService from './GraphViolationService';
@@ -17,14 +17,8 @@ export interface QueryOptions {
   onlyExternalRelations?: boolean,
   showDependencies?: boolean,
   showDependents?: boolean,
-  dependencyRange?: {
-    min?: number;
-    max?: number;
-  },
-  dependentRange?: {
-    min?: number;
-    max?: number;
-  },
+  dependencyRange?: Partial<Range>,
+  dependentRange?: Partial<Range>,
   selfEdges?: boolean,
 }
 
@@ -51,33 +45,44 @@ export default class GraphVisualizationService {
     return new GraphProcessingService().formatToLPG(records, 'All sublayers and modules', { selectedId: id }).graph;
   }
 
-  private processGraphAndGetViolations(
+  private async processGraphAndGetViolations(
     neo4jRecords: Record<Neo4jComponentPath>[],
     options: GraphFilterOptions = {},
-  ) {
+  ): Promise<GraphWithViolations> {
     const {
       selectedId, maxDepth,
-      minRelationships, maxRelationships, selfEdges,
+      dependencyRange, dependentRange, selfEdges,
     } = options;
 
-    let { nodes, records } = new GraphPreProcessingService(neo4jRecords, selectedId);
+    const {
+      nodes: originalNodes,
+      records: originalRecords,
+    } = new GraphPreProcessingService(neo4jRecords, selectedId);
     const processor = new GraphProcessingService();
 
     // Find the nodes that need to be replaced (and with which nodes).
     // Also, already remove the too-deep nodes
     let replaceMap: Map<string, string> | undefined;
     if (maxDepth !== undefined) {
-      replaceMap = processor.getAbstractionMap(records, maxDepth);
-      records = processor.applyAbstraction(records, replaceMap);
+      replaceMap = processor.getAbstractionMap(originalRecords, maxDepth);
+    }
+
+    let records: Neo4jComponentPathWithChunks[];
+    if (replaceMap && replaceMap.size > 0) {
+      records = processor.applyAbstraction(originalRecords, replaceMap);
+    } else {
+      records = originalRecords;
     }
 
     // Count how many relationships each child of the selected node has
     records = processor
-      .applyMinMaxRelationshipsFilter(records, minRelationships, maxRelationships);
+      .applyMinMaxRelationshipsFilter(records, true, dependencyRange?.min, dependencyRange?.max);
+    records = processor
+      .applyMinMaxRelationshipsFilter(records, false, dependentRange?.min, dependentRange?.max);
 
     const edges = processor.mergeDuplicateEdges(processor.getAllEdges(records));
 
-    nodes = processor.filterNodesByEdges(nodes, edges);
+    const nodes = processor.filterNodesByEdges(originalNodes, edges);
 
     const replaceResult = processor.replaceEdgeWithParentRelationship(nodes, edges, 'contains');
 
@@ -91,9 +96,27 @@ export default class GraphVisualizationService {
       edges: replaceResult.dependencyEdges,
     };
 
+    const violations = await this.getGraphViolations(originalRecords, graph, replaceMap);
+
     return {
       graph,
-      replaceMap,
+      violations,
+    };
+  }
+
+  private async getGraphViolations(
+    records: Neo4jComponentPathWithChunks[],
+    graph: Graph,
+    replaceMap: Map<string, string> = new Map(),
+  ): Promise<Violations> {
+    const violationService = new GraphViolationService(this.client);
+
+    const cyclicalDependencies = await violationService.getDependencyCycles();
+    const formattedCyclDeps = violationService
+      .extractAndAbstractDependencyCycles(cyclicalDependencies, graph, replaceMap);
+
+    return {
+      dependencyCycles: formattedCyclDeps,
     };
   }
 
@@ -139,23 +162,18 @@ export default class GraphVisualizationService {
         .executeQuery<Neo4jComponentPath>(buildQuery(false));
       neo4jRecords.push(...records);
     }
-    const { graph: dependencyGraph, replaceMap } = this.processGraphAndGetViolations(neo4jRecords, {
+    const {
+      graph: dependencyGraph,
+      violations,
+    } = await this.processGraphAndGetViolations(neo4jRecords, {
       selectedId: id,
       maxDepth: layerDepth,
       selfEdges,
+      dependentRange,
+      dependencyRange,
     });
 
     const { graph } = new GraphPostProcessingService(...graphs, dependencyGraph);
-
-    const violationService = new GraphViolationService(this.client);
-
-    const cyclicalDependencies = await violationService.getDependencyCycles();
-    const formattedCyclDeps = violationService
-      .extractAndAbstractDependencyCycles(cyclicalDependencies, graph, replaceMap);
-
-    const violations: Violations = {
-      dependencyCycles: formattedCyclDeps,
-    };
 
     await this.client.destroy();
 

@@ -89,10 +89,10 @@ export default class GraphPropertiesService {
     });
 
     return layers.sort((a, b) => {
-      if (a.parentLabel === b.label) return 1;
-      if (b.parentLabel === a.label) return -1;
+      if (a.parentLabel === b.label) return -1;
+      if (b.parentLabel === a.label) return 1;
       return 0;
-    });
+    }).reverse();
   }
 
   async getLayers() {
