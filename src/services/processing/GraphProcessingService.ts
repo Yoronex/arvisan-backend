@@ -1,8 +1,7 @@
-import { Record } from 'neo4j-driver';
 import {
   Edge, Graph, Neo4jComponentPath, Node,
 } from '../../entities';
-import { INeo4jComponentPath, INeo4jComponentRelationship } from '../../database/entities';
+import { INeo4jComponentRelationship } from '../../database/entities';
 import GraphElementParserService from './GraphElementParserService';
 import GraphPreProcessingService from './GraphPreProcessingService';
 import { Neo4jDependencyType } from '../../entities/Neo4jComponentPath';
@@ -19,7 +18,6 @@ export interface Range {
  * @property selfEdges - If self edges should be returned
  */
 export interface BasicGraphFilterOptions {
-  selectedId?: string;
   maxDepth?: number;
   selfEdges?: boolean;
 }
@@ -34,14 +32,21 @@ export interface GraphFilterOptions extends BasicGraphFilterOptions {
 }
 
 export default class GraphProcessingService {
+  public readonly original: GraphPreProcessingService;
+
+  constructor(
+    preprocessor: GraphPreProcessingService,
+    public readonly contextGraph: Graph = { edges: [], nodes: [], name: 'undefined' },
+  ) {
+    this.original = preprocessor;
+  }
+
   /**
    * Given a complete Neo4j graph query result, create a mapping from module IDs
    * to their abstractions
-   * @param records
    * @param maxDepth
    */
   getAbstractionMap(
-    records: Neo4jComponentPath[],
     maxDepth: number,
   ): Map<string, string> {
     // Replace all transitive nodes with this existing end node (the first of the full path)
@@ -53,7 +58,7 @@ export default class GraphProcessingService {
         .set(edge.endNodeElementId, firstStartNode));
     };
 
-    records.forEach((record) => {
+    this.original.records.forEach((record) => {
       const containsSourceDepth = record.sourceDepth;
       const containsTargetDepth = record.targetDepth;
       const containsTooDeep = Math.max(0, containsSourceDepth - maxDepth);
@@ -82,7 +87,7 @@ export default class GraphProcessingService {
         if (seenEdges.indexOf(edgeId) >= 0) return undefined;
         seenEdges.push(edgeId);
         return {
-          data: GraphElementParserService.formatNeo4jRelationshipToEdgeData(r),
+          data: GraphElementParserService.toEdgeData(r),
         };
       }))
       .flat()
@@ -123,6 +128,7 @@ export default class GraphProcessingService {
         if (abstractionMap.has(e.endNodeElementId)) {
           e.endNodeElementId = abstractionMap.get(e.endNodeElementId) as string;
         }
+        e.setNodeReferences([...this.original.nodes, ...this.contextGraph.nodes]);
         return e;
       });
       return record;
@@ -236,34 +242,31 @@ export default class GraphProcessingService {
 
   /**
    * Parse the given Neo4j query result to a LPG
-   * @param records
    * @param name graph name
    * @param options
    */
   formatToLPG(
-    records: Record<INeo4jComponentPath>[],
     name: string,
     options: BasicGraphFilterOptions = {},
   ): Graph {
     const {
-      selectedId, maxDepth, selfEdges,
+      maxDepth, selfEdges,
     } = options;
 
-    const preprocessor = new GraphPreProcessingService(records, selectedId, false);
-    let { nodes, records: filteredRecords } = preprocessor;
+    let filteredRecords = this.original.records;
 
     // Find the nodes that need to be replaced (and with which nodes).
     // Also, already remove the too-deep nodes
     let replaceMap: Map<string, string> | undefined;
     if (maxDepth !== undefined) {
-      replaceMap = this.getAbstractionMap(filteredRecords, maxDepth);
+      replaceMap = this.getAbstractionMap(maxDepth);
       filteredRecords = this.applyAbstraction(filteredRecords, replaceMap);
     }
 
     let edges = this.getAllEdges(filteredRecords);
     edges = this.mergeDuplicateEdges(edges);
 
-    nodes = this.filterNodesByEdges(nodes, edges);
+    const nodes = this.filterNodesByEdges(this.original.nodes, edges);
 
     const replaceResult = this.replaceEdgeWithParentRelationship(nodes, edges, 'contains');
 

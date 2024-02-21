@@ -1,9 +1,8 @@
 import { Record } from 'neo4j-driver';
 import {
-  Neo4jComponentPath, Node,
+  Neo4jComponentPath, Node, Neo4jComponentRelationship,
 } from '../../entities';
 import { LayerViolation, LayerViolationSpec } from '../../entities/violations/LayerViolation';
-import { Neo4jComponentRelationship } from '../../entities/Neo4jComponentRelationship';
 import GraphElementParserService from '../processing/GraphElementParserService';
 import { Neo4jClient } from '../../database/Neo4jClient';
 import { INeo4jComponentNode } from '../../database/entities';
@@ -18,7 +17,7 @@ export class ViolationLayerService {
 
   private layerViolationSpecs: LayerViolationSpec[] = [];
 
-  constructor(private client: Neo4jClient) {}
+  constructor(private client: Neo4jClient = new Neo4jClient()) {}
 
   private formatLayerViolations(records: Record<Neo4jViolation>[]): LayerViolationSpec[] {
     return records.map((r): LayerViolationSpec => ({
@@ -94,10 +93,11 @@ export class ViolationLayerService {
   public extractLayerViolations(): LayerViolation[] {
     return this.violatingRelationships
       .filter((r) => r.violations.subLayer)
-      .map((r) => ({
-        ...GraphElementParserService.formatNeo4jRelationshipToEdgeData(r),
-        actualEdges: [GraphElementParserService
-          .formatNeo4jRelationshipToEdgeData(r.originalRelationship)],
+      .map((r): LayerViolation => ({
+        ...GraphElementParserService.toEdgeData(r),
+        actualEdges: [GraphElementParserService.toEdgeData(r.originalRelationship)],
+        sourceNode: r.startNode?.data,
+        targetNode: r.endNode?.data,
       }))
       .reduce((mergedEdges: LayerViolation[], e) => {
         const index = mergedEdges

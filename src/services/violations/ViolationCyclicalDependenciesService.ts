@@ -6,6 +6,7 @@ import { ExtendedEdgeData } from '../../entities/Edge';
 import { DependencyCycleRender } from '../../entities/violations/DependencyCycle';
 import { Graph } from '../../entities';
 import GraphElementParserService from '../processing/GraphElementParserService';
+import { ViolationBaseService } from './ViolationBaseService';
 
 interface Neo4jDependencyPath {
   path: {
@@ -32,11 +33,11 @@ export default class ViolationCyclicalDependenciesService {
     return records.map((r): DependencyCycle => {
       const { start, segments } = r.get('path');
       return {
-        node: GraphElementParserService.formatNeo4jNodeToNodeData(start),
+        node: GraphElementParserService.toNodeData(start),
         path: segments.map((s): ExtendedEdgeData => ({
-          ...GraphElementParserService.formatNeo4jRelationshipToEdgeData(s.relationship),
-          sourceNode: GraphElementParserService.formatNeo4jNodeToNodeData(s.start),
-          targetNode: GraphElementParserService.formatNeo4jNodeToNodeData(s.end),
+          ...GraphElementParserService.toEdgeData(s.relationship),
+          sourceNode: GraphElementParserService.toNodeData(s.start),
+          targetNode: GraphElementParserService.toNodeData(s.end),
         })),
         length: segments.length,
       };
@@ -95,23 +96,11 @@ export default class ViolationCyclicalDependenciesService {
           newEdge.targetNode = replaceTargetNode.data;
         }
         return newEdge;
-      }).map((d) => {
-        // The abstracted edge exists in the graph, but possible with a different ID.
-        // Therefore, we should use the same edge ID to make sure it is rendered
-        // correctly in the frontend.
-        const graphEdge = graph.edges
-          .find((e) => e.data.source === d.source && e.data.target === d.target);
-        if (graphEdge) {
-          return {
-            ...d,
-            id: graphEdge.data.id,
-          };
-        }
-        return d;
-      }).filter((e, index) => {
-        if (index === 0) return true;
-        return e.source !== e.target;
-      });
+      }).map((d) => ViolationBaseService.replaceWithCorrectEdgeIds(d, graph))
+        .filter((e, index) => {
+          if (index === 0) return true;
+          return e.source !== e.target;
+        });
 
       return newDep;
     }).filter((d) => !!graph.nodes.find((n) => n.data.id === d.node.id))

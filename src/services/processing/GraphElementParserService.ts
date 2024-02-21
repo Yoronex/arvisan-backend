@@ -9,7 +9,7 @@ export default class GraphElementParserService {
    * @param node
    * @param selectedId
    */
-  public static formatNeo4jNodeToNodeData(
+  public static toNodeData(
     node: INeo4jComponentNode,
     selectedId?: string,
   ): NodeData {
@@ -30,7 +30,7 @@ export default class GraphElementParserService {
    * Given a Neo4J relationship, format it to a CytoScape EdgeData format.
    * @param edge
    */
-  public static formatNeo4jRelationshipToEdgeData(
+  public static toEdgeData(
     edge: INeo4jComponentRelationship | Neo4jComponentRelationship,
   ): EdgeData {
     return {

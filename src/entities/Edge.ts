@@ -28,7 +28,7 @@ export interface EdgeData {
 
 export interface ExtendedEdgeData extends EdgeData {
   /** Source node object */
-  sourceNode: NodeData,
+  sourceNode?: NodeData,
   /** Target node object */
-  targetNode: NodeData,
+  targetNode?: NodeData,
 }

@@ -9,6 +9,7 @@ import Violations from '../entities/violations';
 import { GraphWithViolations } from '../entities/Graph';
 import GraphPreProcessingService from './processing/GraphPreProcessingService';
 import { ViolationLayerService } from './violations';
+import { ViolationBaseService } from './violations/ViolationBaseService';
 
 export interface QueryOptions {
   id: string;
@@ -35,7 +36,8 @@ export default class GraphVisualizationService {
       MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')<-[r:CONTAINS*0..5]-(selectedParent) 
       RETURN selectedNode as source, r as path, selectedParent as target`;
     const records = await this.client.executeQuery<INeo4jComponentPath>(query);
-    return new GraphProcessingService().formatToLPG(records, 'All parents', { selectedId: id });
+    const preprocessor = new GraphPreProcessingService(records, id, false);
+    return new GraphProcessingService(preprocessor).formatToLPG('All parents');
   }
 
   private async getChildren(id: string, depth: number) {
@@ -43,32 +45,31 @@ export default class GraphVisualizationService {
       MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')-[r:CONTAINS*0..${depth}]->(moduleOrLayer) 
       RETURN selectedNode as source, r as path, moduleOrLayer as target`;
     const records = await this.client.executeQuery<INeo4jComponentPath>(query);
-    return new GraphProcessingService().formatToLPG(records, 'All sublayers and modules', { selectedId: id });
+    const preprocessor = new GraphPreProcessingService(records, id, false);
+    return new GraphProcessingService(preprocessor).formatToLPG('All sublayers and modules');
   }
 
   private async processGraphAndGetViolations(
     neo4jRecords: Record<INeo4jComponentPath>[],
+    selectedId?: string,
     options: GraphFilterOptions = {},
     treeGraph?: Graph,
   ): Promise<GraphWithViolations> {
     const {
-      selectedId, maxDepth,
+      maxDepth,
       dependencyRange, dependentRange, selfEdges,
     } = options;
 
-    const {
-      nodes: originalNodes,
-      records: originalRecords,
-    } = new GraphPreProcessingService(neo4jRecords, selectedId);
-    const processor = new GraphProcessingService();
+    const preprocessor = new GraphPreProcessingService(neo4jRecords, selectedId);
+    const processor = new GraphProcessingService(preprocessor);
 
     if (treeGraph) {
-      const containRelationships = originalRecords
+      const containRelationships = preprocessor.records
         .map((r) => [r.containSourceEdges, r.containTargetEdges])
         .flat().flat();
-      originalRecords.forEach((r) => {
+      preprocessor.records.forEach((r) => {
         r.dependencyEdges.flat().forEach((dep) => {
-          dep.findAndSetParents([...treeGraph.nodes, ...originalNodes], containRelationships);
+          dep.findAndSetParents([...treeGraph.nodes, ...preprocessor.nodes], containRelationships);
         });
       });
     }
@@ -77,14 +78,14 @@ export default class GraphVisualizationService {
     // Also, already remove the too-deep nodes
     let replaceMap: Map<string, string> | undefined;
     if (maxDepth !== undefined) {
-      replaceMap = processor.getAbstractionMap(originalRecords, maxDepth);
+      replaceMap = processor.getAbstractionMap(maxDepth);
     }
 
     let records: Neo4jComponentPath[];
     if (replaceMap && replaceMap.size > 0) {
-      records = processor.applyAbstraction(originalRecords, replaceMap);
+      records = processor.applyAbstraction(processor.original.records, replaceMap);
     } else {
-      records = originalRecords;
+      records = processor.original.records;
     }
 
     // Count how many relationships each child of the selected node has
@@ -95,7 +96,7 @@ export default class GraphVisualizationService {
 
     const edges = processor.mergeDuplicateEdges(processor.getAllEdges(records));
 
-    const nodes = processor.filterNodesByEdges(originalNodes, edges);
+    const nodes = processor.filterNodesByEdges(processor.original.nodes, edges);
 
     const replaceResult = processor.replaceEdgeWithParentRelationship(nodes, edges, 'contains');
 
@@ -109,7 +110,11 @@ export default class GraphVisualizationService {
       edges: replaceResult.dependencyEdges,
     };
 
-    const violations = await this.getGraphViolations(originalRecords, graph, replaceMap);
+    const violations = await this.getGraphViolations(
+      processor.original.records,
+      graph,
+      replaceMap,
+    );
 
     return {
       graph,
@@ -130,10 +135,13 @@ export default class GraphVisualizationService {
 
     const layerViolationService = new ViolationLayerService(this.client);
     await layerViolationService.markAndStoreLayerViolations(records);
+    let sublayerViolations = layerViolationService.extractLayerViolations();
+    sublayerViolations = sublayerViolations
+      .map((v) => ViolationBaseService.replaceWithCorrectEdgeIds(v, graph));
 
     return {
       dependencyCycles: formattedCyclDeps,
-      subLayers: layerViolationService.extractLayerViolations(),
+      subLayers: sublayerViolations,
     };
   }
 
@@ -183,8 +191,7 @@ export default class GraphVisualizationService {
     const {
       graph: dependencyGraph,
       violations,
-    } = await this.processGraphAndGetViolations(neo4jRecords, {
-      selectedId: id,
+    } = await this.processGraphAndGetViolations(neo4jRecords, id, {
       maxDepth: layerDepth,
       selfEdges,
       dependentRange,

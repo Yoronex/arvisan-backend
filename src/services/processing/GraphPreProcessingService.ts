@@ -17,7 +17,7 @@ export default class GraphPreProcessingService {
    */
   constructor(
     records: Record<INeo4jComponentPath>[],
-    selectedId?: string,
+    public readonly selectedId?: string,
     addNodeReferences = true,
   ) {
     this.nodes = this.getAllNodes(records, selectedId);
@@ -40,7 +40,7 @@ export default class GraphPreProcessingService {
           if (seenNodes.indexOf(nodeId) >= 0) return undefined;
           seenNodes.push(nodeId);
           return {
-            data: GraphElementParserService.formatNeo4jNodeToNodeData(field, selectedId),
+            data: GraphElementParserService.toNodeData(field, selectedId),
           };
         }))
       .flat()
@@ -62,9 +62,8 @@ export default class GraphPreProcessingService {
     const newRecords = records
       .map((record) => (new Neo4jComponentPath(record)));
     if (addNodeReferences) {
-      const neo4jNodes = newRecords.map((r) => [r.source, r.target]).flat();
       newRecords.forEach((r) => r.dependencyEdges.flat()
-        .forEach((d) => d.setNodeReferences(neo4jNodes)));
+        .forEach((d) => d.setNodeReferences(this.nodes)));
     }
     return newRecords;
   }

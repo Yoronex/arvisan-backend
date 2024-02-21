@@ -3,6 +3,7 @@ import { Neo4jClient } from '../database/Neo4jClient';
 import GraphProcessingService from './processing/GraphProcessingService';
 import { INeo4jComponentPath } from '../database/entities';
 import { Domain } from '../entities';
+import GraphPreProcessingService from './processing/GraphPreProcessingService';
 
 export interface GraphLayer {
   label: string;
@@ -23,7 +24,8 @@ export default class GraphPropertiesService {
   }
 
   private formatDomains(records: Record<INeo4jComponentPath>[]): Domain[] {
-    const { nodes, edges } = new GraphProcessingService().formatToLPG(records, 'All domains', {
+    const preprocessor = new GraphPreProcessingService(records, undefined, false);
+    const { nodes, edges } = new GraphProcessingService(preprocessor).formatToLPG('All domains', {
       maxDepth: 0,
       selfEdges: true,
     });

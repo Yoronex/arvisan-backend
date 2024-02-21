@@ -1,5 +1,5 @@
 import { Integer } from 'neo4j-driver';
-import { INeo4jComponentRelationship, INeo4jComponentNode } from '../database/entities';
+import { INeo4jComponentRelationship } from '../database/entities';
 import { Node } from './Node';
 import { EdgeViolations } from './Edge';
 
@@ -27,20 +27,19 @@ export class Neo4jComponentRelationship implements INeo4jComponentRelationship {
   readonly originalRelationship: INeo4jComponentRelationship;
 
   /** Reference to the start node of this relationship */
-  startNode: INeo4jComponentNode | undefined;
+  startNode: Node | undefined;
 
   /** Reference to the end node of this relationship */
-  endNode: INeo4jComponentNode | undefined;
+  endNode: Node | undefined;
 
   /**
    * Reference to the parents of the start node.
    * The first element is the direct parent of the source node,
    * the second the parent of the parent, etc.
-   * Undefined if there is no startNode.
    */
-  startNodeParents: Node[] | undefined;
+  startNodeParents: Node[] = [];
 
-  endNodeParents: Node[] | undefined;
+  endNodeParents: Node[] = [];
 
   constructor(dep: INeo4jComponentRelationship) {
     this.elementId = dep.elementId;
@@ -54,11 +53,9 @@ export class Neo4jComponentRelationship implements INeo4jComponentRelationship {
     this.originalRelationship = dep;
   }
 
-  setNodeReferences(nodes: INeo4jComponentNode[]) {
-    this.startNode = nodes.find((n) => n.elementId === this.startNodeElementId);
-    if (this.startNode) this.startNodeParents = [];
-    this.endNode = nodes.find((n) => n.elementId === this.endNodeElementId);
-    if (this.endNode) this.endNodeParents = [];
+  setNodeReferences(nodes: Node[]) {
+    this.startNode = nodes.find((n) => n.data.id === this.startNodeElementId);
+    this.endNode = nodes.find((n) => n.data.id === this.endNodeElementId);
   }
 
   /**
