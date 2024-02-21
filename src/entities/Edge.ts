@@ -4,6 +4,10 @@ export interface Edge {
   data: EdgeData,
 }
 
+export interface EdgeViolations {
+  subLayer: boolean;
+}
+
 export interface EdgeData {
   /** Unique edge identifier */
   id: string,
@@ -18,7 +22,7 @@ export interface EdgeData {
     /** Edge weight */
     weight: number,
     /** Whether this edge is some architectural violation */
-    violation: 'true' | 'false';
+    violations: EdgeViolations,
   },
 }
 

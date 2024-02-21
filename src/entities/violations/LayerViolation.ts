@@ -6,5 +6,5 @@ export interface LayerViolationSpec {
 }
 
 export interface LayerViolation extends EdgeData {
-  actualEdges: EdgeData[];
+  actualEdges: EdgeData[]; // List, because an abstraction may include multiple "real" edges
 }

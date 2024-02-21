@@ -112,7 +112,7 @@ export default class GraphProcessingService {
     return records.map((record): Neo4jComponentPathWithChunks => {
       // eslint-disable-next-line no-param-reassign
       record.dependencyEdges = record.dependencyEdges
-        .map((chunk) => chunk.map((e): Neo4jComponentDependency => {
+        .map((chunk) => chunk.map((e) => {
           if (abstractionMap.has(e.startNodeElementId)) {
             e.startNodeElementId = abstractionMap.get(e.startNodeElementId) as string;
           }
@@ -242,11 +242,10 @@ export default class GraphProcessingService {
     options: GraphFilterOptions = {},
   ) {
     const {
-      selectedId, maxDepth,
-      dependentRange, dependencyRange, selfEdges,
+      selectedId, maxDepth, selfEdges,
     } = options;
 
-    const preprocessor = new GraphPreProcessingService(records, selectedId);
+    const preprocessor = new GraphPreProcessingService(records, selectedId, false);
     let { nodes, records: filteredRecords } = preprocessor;
 
     // Find the nodes that need to be replaced (and with which nodes).
@@ -256,20 +255,6 @@ export default class GraphProcessingService {
       replaceMap = this.getAbstractionMap(filteredRecords, maxDepth);
       filteredRecords = this.applyAbstraction(filteredRecords, replaceMap);
     }
-
-    // Count how many relationships each child of the selected node has
-    filteredRecords = this.applyMinMaxRelationshipsFilter(
-      filteredRecords,
-      true,
-      dependencyRange?.min,
-      dependencyRange?.max,
-    );
-    filteredRecords = this.applyMinMaxRelationshipsFilter(
-      filteredRecords,
-      false,
-      dependentRange?.min,
-      dependentRange?.max,
-    );
 
     let edges = this.getAllEdges(filteredRecords);
     edges = this.mergeDuplicateEdges(edges);

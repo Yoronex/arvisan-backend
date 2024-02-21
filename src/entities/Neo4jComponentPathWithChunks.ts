@@ -1,5 +1,6 @@
 import { Record } from 'neo4j-driver';
 import { Neo4jComponentDependency, Neo4jComponentNode, Neo4jComponentPath } from '../database/entities';
+import { Neo4jComponentDependencyWithParents } from './Neo4jComponentDependencyWithParents';
 
 export enum Neo4jDependencyType {
   NONE,
@@ -12,7 +13,7 @@ export class Neo4jComponentPathWithChunks {
 
   public containSourceEdges: Neo4jComponentDependency[] = [];
 
-  public dependencyEdges: Neo4jComponentDependency[][] = [];
+  public dependencyEdges: Neo4jComponentDependencyWithParents[][] = [];
 
   public containTargetEdges: Neo4jComponentDependency[] = [];
 
@@ -69,7 +70,8 @@ export class Neo4jComponentPathWithChunks {
 
     // eslint-disable-next-line prefer-destructuring
     this.containSourceEdges = chunks[0];
-    this.dependencyEdges = chunks.slice(1, chunks.length - 1);
+    this.dependencyEdges = chunks.slice(1, chunks.length - 1)
+      .map((chunk) => chunk.map((dep) => new Neo4jComponentDependencyWithParents(dep)));
     this.containTargetEdges = chunks[chunks.length - 1];
   }
 

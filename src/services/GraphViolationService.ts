@@ -3,9 +3,8 @@ import { Neo4jClient } from '../database/Neo4jClient';
 import { DependencyCycle } from '../entities/violations';
 import { Neo4jComponentDependency, Neo4jComponentNode } from '../database/entities';
 import { ExtendedEdgeData } from '../entities/Edge';
-import { LayerViolation, LayerViolationSpec } from '../entities/violations/LayerViolation';
 import { DependencyCycleRender } from '../entities/violations/DependencyCycle';
-import { Graph, Node } from '../entities';
+import { Graph } from '../entities';
 import GraphElementParserService from './processing/GraphElementParserService';
 
 interface Neo4jDependencyPath {
@@ -18,11 +17,6 @@ interface Neo4jDependencyPath {
       end: Neo4jComponentNode,
     }[],
   },
-}
-
-interface Neo4jViolation {
-  source: Neo4jComponentNode;
-  target: Neo4jComponentNode;
 }
 
 export default class GraphViolationService {
@@ -47,13 +41,6 @@ export default class GraphViolationService {
         length: segments.length,
       };
     });
-  }
-
-  private formatLayerViolations(records: Record<Neo4jViolation>[]): LayerViolationSpec[] {
-    return records.map((r): LayerViolationSpec => ({
-      fromSublayer: r.get('source').properties.simpleName,
-      toSublayer: r.get('target').properties.simpleName,
-    }));
   }
 
   public async getDependencyCycles(elementIds?: string[]): Promise<DependencyCycle[]> {
@@ -139,69 +126,5 @@ export default class GraphViolationService {
         }
         return violations;
       }, []);
-  }
-
-  /**
-   * Get a list of all (sublayer) dependency violations. These are only the "blueprints",
-   * not the actual violations in a given graph.
-   */
-  public async getLayerViolations(): Promise<LayerViolationSpec[]> {
-    const query = 'MATCH (source)-[r:VIOLATES]->(target) RETURN source, target';
-    const records = await this.client.executeQuery<Neo4jViolation>(query);
-    return this.formatLayerViolations(records);
-  }
-
-  /**
-   * Get the given node's Sublayer parent node, if it exists.
-   * It can be nonexistent if the given node is from a higher layer.
-   * @param node
-   * @param nodes
-   * @private
-   */
-  private getSublayerParent(node: Node, nodes: Node[]): Node | null {
-    if (!node.data.parent) return null;
-    const parent = nodes.find((n) => n.data.id === node.data.parent);
-    if (!parent) return null;
-    if (parent.data.properties.layer.includes('Sublayer')) return parent;
-    return this.getSublayerParent(parent, nodes);
-  }
-
-  private getSublayerParentFromId(nodeId: string, nodes: Node[]): Node | null {
-    const node = nodes.find((n) => n.data.id === nodeId);
-    if (!node) return null;
-    return this.getSublayerParent(node, nodes);
-  }
-
-  /**
-   * Return whether the given edge is an architectural violation
-   * @param violations
-   * @param sourceLayer
-   * @param targetLayer
-   * @private
-   */
-  private isLayerViolation(
-    violations: LayerViolationSpec[],
-    sourceLayer: Node,
-    targetLayer: Node,
-  ): boolean {
-    const sourceLayerName = sourceLayer.data.properties.layer;
-    const targetLayerName = targetLayer.data.properties.layer;
-    return !!violations.find((v) => v.fromSublayer === sourceLayerName
-      && v.toSublayer === targetLayerName);
-  }
-
-  public extractAndMarkLayerViolations(
-    violations: LayerViolationSpec[],
-    graph: Graph,
-  ): Promise<LayerViolation[]> {
-    const edgesWithLayers = graph.edges.map((e) => {
-      const sourceLayer = this.getSublayerParentFromId(e.data.source, graph.nodes);
-      const targetLayer = this.getSublayerParentFromId(e.data.target, graph.nodes);
-      return {
-        ...e,
-        sourceLayer,
-        targetLayer,
-      };
-    });
   }
 }

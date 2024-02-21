@@ -8,10 +8,21 @@ export default class GraphPreProcessingService {
 
   public readonly records: Neo4jComponentPathWithChunks[];
 
-  constructor(records: Record<Neo4jComponentPath>[], selectedId?: string) {
+  /**
+   * @param records Unprocessed Neo4j paths
+   * @param selectedId ID of the selected node (to highlight it)
+   * @param addNodeReferences Whether each relationship in each path should get a
+   * reference to its start and end nodes. Disable if it is not needed to increase
+   * performance.
+   */
+  constructor(
+    records: Record<Neo4jComponentPath>[],
+    selectedId?: string,
+    addNodeReferences = true,
+  ) {
     this.nodes = this.getAllNodes(records, selectedId);
 
-    const chunkRecords = this.splitRelationshipsIntoChunks(records);
+    const chunkRecords = this.splitRelationshipsIntoChunks(records, addNodeReferences);
     this.records = this.onlyKeepLongestPaths(chunkRecords);
   }
 
@@ -40,12 +51,22 @@ export default class GraphPreProcessingService {
    * Return the given records, but split/group the relationships into chunks of the same
    * type of relationship. See also this.groupRelationships().
    * @param records
+   * @param addNodeReferences Whether each relationship in each path should get a
+   * reference to its start and end nodes. Disable if it is not needed to increase
+   * performance.
    */
   private splitRelationshipsIntoChunks(
     records: Record<Neo4jComponentPath>[],
+    addNodeReferences = true,
   ): Neo4jComponentPathWithChunks[] {
-    return records
+    const newRecords = records
       .map((record) => (new Neo4jComponentPathWithChunks(record)));
+    if (addNodeReferences) {
+      const neo4jNodes = newRecords.map((r) => [r.source, r.target]).flat();
+      newRecords.forEach((r) => r.dependencyEdges.flat()
+        .forEach((d) => d.setNodeReferences(neo4jNodes)));
+    }
+    return newRecords;
   }
 
   /**

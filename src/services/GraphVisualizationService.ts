@@ -8,6 +8,7 @@ import GraphViolationService from './GraphViolationService';
 import Violations from '../entities/violations';
 import { GraphWithViolations } from '../entities/Graph';
 import GraphPreProcessingService from './processing/GraphPreProcessingService';
+import { ViolationLayerService } from './violations';
 
 export interface QueryOptions {
   id: string;
@@ -48,6 +49,7 @@ export default class GraphVisualizationService {
   private async processGraphAndGetViolations(
     neo4jRecords: Record<Neo4jComponentPath>[],
     options: GraphFilterOptions = {},
+    treeGraph?: Graph,
   ): Promise<GraphWithViolations> {
     const {
       selectedId, maxDepth,
@@ -59,6 +61,17 @@ export default class GraphVisualizationService {
       records: originalRecords,
     } = new GraphPreProcessingService(neo4jRecords, selectedId);
     const processor = new GraphProcessingService();
+
+    if (treeGraph) {
+      const containRelationships = originalRecords
+        .map((r) => [r.containSourceEdges, r.containTargetEdges])
+        .flat().flat();
+      originalRecords.forEach((r) => {
+        r.dependencyEdges.flat().forEach((dep) => {
+          dep.findAndSetParents([...treeGraph.nodes, ...originalNodes], containRelationships);
+        });
+      });
+    }
 
     // Find the nodes that need to be replaced (and with which nodes).
     // Also, already remove the too-deep nodes
@@ -115,8 +128,12 @@ export default class GraphVisualizationService {
     const formattedCyclDeps = violationService
       .extractAndAbstractDependencyCycles(cyclicalDependencies, graph, replaceMap);
 
+    const layerViolationService = new ViolationLayerService(this.client);
+    await layerViolationService.markAndStoreLayerViolations(records);
+
     return {
       dependencyCycles: formattedCyclDeps,
+      subLayers: layerViolationService.extractLayerViolations(),
     };
   }
 
@@ -149,6 +166,7 @@ export default class GraphVisualizationService {
       this.getParents(id),
       this.getChildren(id, layerDepth),
     ]);
+    const { graph: treeGraph } = new GraphPostProcessingService(...graphs);
 
     const neo4jRecords: Record<Neo4jComponentPath>[] = [];
 
@@ -171,9 +189,9 @@ export default class GraphVisualizationService {
       selfEdges,
       dependentRange,
       dependencyRange,
-    });
+    }, treeGraph);
 
-    const { graph } = new GraphPostProcessingService(...graphs, dependencyGraph);
+    const { graph } = new GraphPostProcessingService(treeGraph, dependencyGraph);
 
     await this.client.destroy();
 

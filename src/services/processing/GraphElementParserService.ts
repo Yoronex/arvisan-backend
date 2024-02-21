@@ -1,6 +1,7 @@
 import { Neo4jComponentDependency, Neo4jComponentNode } from '../../database/entities';
 import { NodeData } from '../../entities/Node';
 import { EdgeData } from '../../entities/Edge';
+import { Neo4jComponentDependencyWithParents } from '../../entities/Neo4jComponentDependencyWithParents';
 
 export default class GraphElementParserService {
   /**
@@ -27,7 +28,7 @@ export default class GraphElementParserService {
    * @param edge
    */
   public static formatNeo4jRelationshipToEdgeData(
-    edge: Neo4jComponentDependency,
+    edge: Neo4jComponentDependency | Neo4jComponentDependencyWithParents,
   ): EdgeData {
     return {
       id: edge.elementId,
@@ -36,7 +37,9 @@ export default class GraphElementParserService {
       interaction: edge.type.toLowerCase(),
       properties: {
         weight: 1,
-        violation: 'false',
+        violations: {
+          subLayer: 'violations' in edge ? edge.violations.subLayer : false,
+        },
       },
     };
   }
