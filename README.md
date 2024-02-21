@@ -4,17 +4,19 @@ This is the backend for the proof-of-concept architecture
 visualizer and analysis tool for the graduation project of Roy Kakkenberg.
 
 ## Requirements
-This backend has been built with NodeJS 20.
-Dependencies are installed with pnpm.
+- NodeJS 20. Dependencies are installed with pnpm.
+- A Neo4j database (v5) with the APOC plugin installed. 
+To install APOC in Neo4j Desktop, click your database project in the app and a sidebar should open on the right.
+You can install APOC from the "Plugins" tab.
 
-### Database
-Because the tool outputs a graph, a relation database is required.
+### Database (Neo4j)
+Because the tool outputs a graph, a graph database is required for easier querying.
 In this case, an instance of Neo4j is used as a database.
 The backend only reads the data; it does not do any insertions.
 Therefore, you have to add any data to the database yourself.
 
 Then, the backend also requires a certain database structure.
-First, all the nodes should be layered.
+First, all the nodes should be layered/clustered.
 During development, the following layers (from top to bottom) and have been used:
 
 - Domain
@@ -39,5 +41,17 @@ structure should be contained in all the layers.
 Dependencies should only exist on the lower "Module" layer.
 These relationships can have any label, but during testing the labels CALLS, USES, RENDERS, and CATCHES were used.
 
+Violation rules are also defined in the database.
+- Sublayer violations are added to the database, simply as a VIOLATES relationship between two sublayer nodes.
+
 During development and testing, data has been imported using a custom parser.
 Due to security and intellectual property considerations, this repository shall not be published. 
+
+## How to install
+- Install NodeJS 20 and pnpm.
+- Install Neo4j and create a database with a corresponding user. Don't forget to install APOC as well.
+- Copy .env-example to .env. Add the Neo4j user credentials (username and password) to the Neo4j environment variables.
+Also choose a username and password, which is used to authenticate with this backend.
+- Install all dependencies: `pnpm install`.
+- Start the application: `npm run dev`.
+- The backend is now accessible on http://localhost:3000. The API documentation can be viewed at http://localhost:3000/api-docs

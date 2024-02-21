@@ -1,6 +1,6 @@
 {
-  "name": "arch-vis-backend",
-  "version": "1.0.0",
+  "name": "arvisan-backend",
+  "version": "0.2.0",
   "description": "",
   "main": "index.js",
   "scripts": {
