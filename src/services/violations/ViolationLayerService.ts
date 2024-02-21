@@ -1,20 +1,20 @@
 import { Record } from 'neo4j-driver';
 import {
-  Neo4jComponentPathWithChunks, Node,
+  Neo4jComponentPath, Node,
 } from '../../entities';
 import { LayerViolation, LayerViolationSpec } from '../../entities/violations/LayerViolation';
-import { Neo4jComponentDependencyWithParents } from '../../entities/Neo4jComponentDependencyWithParents';
+import { Neo4jComponentRelationship } from '../../entities/Neo4jComponentRelationship';
 import GraphElementParserService from '../processing/GraphElementParserService';
 import { Neo4jClient } from '../../database/Neo4jClient';
-import { Neo4jComponentNode } from '../../database/entities';
+import { INeo4jComponentNode } from '../../database/entities';
 
 interface Neo4jViolation {
-  source: Neo4jComponentNode;
-  target: Neo4jComponentNode;
+  source: INeo4jComponentNode;
+  target: INeo4jComponentNode;
 }
 
 export class ViolationLayerService {
-  private violatingRelationships: Neo4jComponentDependencyWithParents[] = [];
+  private violatingRelationships: Neo4jComponentRelationship[] = [];
 
   private layerViolationSpecs: LayerViolationSpec[] = [];
 
@@ -75,7 +75,7 @@ export class ViolationLayerService {
   }
 
   public async markAndStoreLayerViolations(
-    records: Neo4jComponentPathWithChunks[],
+    records: Neo4jComponentPath[],
   ): Promise<void> {
     await this.getLayerViolationSpecs();
 

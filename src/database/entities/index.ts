@@ -1,6 +1,6 @@
 import { Integer, Node as Neo4jNode, Relationship as Neo4jRelationship } from 'neo4j-driver';
 
-export type Neo4jComponentNode = Neo4jNode<Integer, {
+export type INeo4jComponentNode = Neo4jNode<Integer, {
   color: string;
   depth: number;
   id: string;
@@ -8,18 +8,12 @@ export type Neo4jComponentNode = Neo4jNode<Integer, {
   simpleName: string;
 }>;
 
-export type Neo4jComponentDependency = Neo4jRelationship<Integer, {
+export type INeo4jComponentRelationship = Neo4jRelationship<Integer, {
   id: string;
 }>;
 
-export interface Neo4jComponentPath {
-  source: Neo4jComponentNode;
-  path: Neo4jComponentDependency[];
-  target: Neo4jComponentNode;
-}
-
-export interface Neo4jComponentPathWithChunks {
-  source: Neo4jComponentNode;
-  chunks: Neo4jComponentDependency[][];
-  target: Neo4jComponentNode;
+export interface INeo4jComponentPath {
+  source: INeo4jComponentNode;
+  path: INeo4jComponentRelationship[];
+  target: INeo4jComponentNode;
 }

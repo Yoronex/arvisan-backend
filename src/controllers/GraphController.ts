@@ -3,8 +3,6 @@ import {
 } from 'tsoa';
 import { TsoaResponse } from '@tsoa/runtime';
 import GraphVisualizationService, { QueryOptions } from '../services/GraphVisualizationService';
-import { Graph } from '../entities';
-import Violations from '../entities/violations';
 import { GraphWithViolations } from '../entities/Graph';
 
 interface ErrorResponse {

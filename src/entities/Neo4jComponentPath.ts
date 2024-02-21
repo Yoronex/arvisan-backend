@@ -1,6 +1,6 @@
 import { Record } from 'neo4j-driver';
-import { Neo4jComponentDependency, Neo4jComponentNode, Neo4jComponentPath } from '../database/entities';
-import { Neo4jComponentDependencyWithParents } from './Neo4jComponentDependencyWithParents';
+import { INeo4jComponentRelationship, INeo4jComponentNode, INeo4jComponentPath } from '../database/entities';
+import { Neo4jComponentRelationship } from './Neo4jComponentRelationship';
 
 export enum Neo4jDependencyType {
   NONE,
@@ -8,16 +8,16 @@ export enum Neo4jDependencyType {
   DEPENDENT,
 }
 
-export class Neo4jComponentPathWithChunks {
-  public source: Neo4jComponentNode;
+export class Neo4jComponentPath {
+  public source: INeo4jComponentNode;
 
-  public containSourceEdges: Neo4jComponentDependency[] = [];
+  public containSourceEdges: INeo4jComponentRelationship[] = [];
 
-  public dependencyEdges: Neo4jComponentDependencyWithParents[][] = [];
+  public dependencyEdges: Neo4jComponentRelationship[] = [];
 
-  public containTargetEdges: Neo4jComponentDependency[] = [];
+  public containTargetEdges: INeo4jComponentRelationship[] = [];
 
-  public target: Neo4jComponentNode;
+  public target: INeo4jComponentNode;
 
   public readonly type: Neo4jDependencyType;
 
@@ -32,7 +32,7 @@ export class Neo4jComponentPathWithChunks {
    * @private
    */
   private groupAndSet(
-    relationships: Neo4jComponentDependency[],
+    relationships: INeo4jComponentRelationship[],
     containEdgeName = 'CONTAINS',
   ) {
     if (relationships.length === 0) return;
@@ -70,12 +70,12 @@ export class Neo4jComponentPathWithChunks {
 
     // eslint-disable-next-line prefer-destructuring
     this.containSourceEdges = chunks[0];
-    this.dependencyEdges = chunks.slice(1, chunks.length - 1)
-      .map((chunk) => chunk.map((dep) => new Neo4jComponentDependencyWithParents(dep)));
+    this.dependencyEdges = chunks.slice(1, chunks.length - 1).flat()
+      .map((dep) => new Neo4jComponentRelationship(dep));
     this.containTargetEdges = chunks[chunks.length - 1];
   }
 
-  constructor(record: Record<Neo4jComponentPath>) {
+  constructor(record: Record<INeo4jComponentPath>) {
     this.source = record.get('source');
     this.target = record.get('target');
 
@@ -85,17 +85,16 @@ export class Neo4jComponentPathWithChunks {
       .containSourceEdges[this.containSourceEdges.length - 1]?.endNodeElementId
       ?? this.source.elementId;
 
-    if (this.dependencyEdges.length > 0
-      && this.dependencyEdges[0][0]?.startNodeElementId === finalSourceModuleId) {
+    if (this.dependencyEdges[0]?.startNodeElementId === finalSourceModuleId) {
       this.type = Neo4jDependencyType.DEPENDENCY;
-    } else if (this.dependencyEdges.length === 0 || this.dependencyEdges[0].length === 0) {
+    } else if (this.dependencyEdges.length === 0) {
       this.type = Neo4jDependencyType.NONE;
     } else {
       this.type = Neo4jDependencyType.DEPENDENT;
     }
   }
 
-  public get allEdges(): Neo4jComponentDependency[] {
+  public get allEdges(): INeo4jComponentRelationship[] {
     return [...this.containSourceEdges, ...this.dependencyEdges.flat(), ...this.containTargetEdges];
   }
 

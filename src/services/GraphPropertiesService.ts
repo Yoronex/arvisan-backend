@@ -1,7 +1,7 @@
 import { Record } from 'neo4j-driver';
 import { Neo4jClient } from '../database/Neo4jClient';
 import GraphProcessingService from './processing/GraphProcessingService';
-import { Neo4jComponentPath } from '../database/entities';
+import { INeo4jComponentPath } from '../database/entities';
 import { Domain } from '../entities';
 
 export interface GraphLayer {
@@ -22,11 +22,11 @@ export default class GraphPropertiesService {
     this.client = new Neo4jClient();
   }
 
-  private formatDomains(records: Record<Neo4jComponentPath>[]): Domain[] {
+  private formatDomains(records: Record<INeo4jComponentPath>[]): Domain[] {
     const { nodes, edges } = new GraphProcessingService().formatToLPG(records, 'All domains', {
       maxDepth: 0,
       selfEdges: true,
-    }).graph;
+    });
 
     return nodes.map((node): Domain => ({
       ...node.data,
@@ -52,7 +52,7 @@ export default class GraphPropertiesService {
             MATCH (dependency)<-[r3:CONTAINS*0..5]-(parent)                                                  // Get the layers, application and domain of all dependencies
             RETURN DISTINCT selectedNode as source, r1 + r2 + reverse(r3) as path, parent as target `;
     const records = await this.client
-      .executeQuery<Neo4jComponentPath>(query);
+      .executeQuery<INeo4jComponentPath>(query);
     const domains = this.formatDomains(records);
     await this.client.destroy();
     return domains;

@@ -1,12 +1,12 @@
 import { Record } from 'neo4j-driver';
-import { Neo4jComponentPath } from '../../database/entities';
-import { Neo4jComponentPathWithChunks, Node } from '../../entities';
+import { INeo4jComponentPath } from '../../database/entities';
+import { Neo4jComponentPath, Node } from '../../entities';
 import GraphElementParserService from './GraphElementParserService';
 
 export default class GraphPreProcessingService {
   public readonly nodes: Node[];
 
-  public readonly records: Neo4jComponentPathWithChunks[];
+  public readonly records: Neo4jComponentPath[];
 
   /**
    * @param records Unprocessed Neo4j paths
@@ -16,7 +16,7 @@ export default class GraphPreProcessingService {
    * performance.
    */
   constructor(
-    records: Record<Neo4jComponentPath>[],
+    records: Record<INeo4jComponentPath>[],
     selectedId?: string,
     addNodeReferences = true,
   ) {
@@ -31,7 +31,7 @@ export default class GraphPreProcessingService {
    * @param records
    * @param selectedId
    */
-  private getAllNodes(records: Record<Neo4jComponentPath>[], selectedId?: string): Node[] {
+  private getAllNodes(records: Record<INeo4jComponentPath>[], selectedId?: string): Node[] {
     const seenNodes: string[] = [];
     return records
       .map((r) => [r.get('source'), r.get('target')]
@@ -56,11 +56,11 @@ export default class GraphPreProcessingService {
    * performance.
    */
   private splitRelationshipsIntoChunks(
-    records: Record<Neo4jComponentPath>[],
+    records: Record<INeo4jComponentPath>[],
     addNodeReferences = true,
-  ): Neo4jComponentPathWithChunks[] {
+  ): Neo4jComponentPath[] {
     const newRecords = records
-      .map((record) => (new Neo4jComponentPathWithChunks(record)));
+      .map((record) => (new Neo4jComponentPath(record)));
     if (addNodeReferences) {
       const neo4jNodes = newRecords.map((r) => [r.source, r.target]).flat();
       newRecords.forEach((r) => r.dependencyEdges.flat()
@@ -75,7 +75,7 @@ export default class GraphPreProcessingService {
    * the total number of relationship a leaf has.
    * @param records
    */
-  private onlyKeepLongestPaths(records: Neo4jComponentPathWithChunks[]) {
+  private onlyKeepLongestPaths(records: Neo4jComponentPath[]) {
     const seenPaths = new Map<string, number>();
     return records
       .map((record) => {

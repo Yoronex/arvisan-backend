@@ -1,9 +1,9 @@
 import { Integer } from 'neo4j-driver';
-import { Neo4jComponentDependency, Neo4jComponentNode } from '../database/entities';
+import { INeo4jComponentRelationship, INeo4jComponentNode } from '../database/entities';
 import { Node } from './Node';
 import { EdgeViolations } from './Edge';
 
-export class Neo4jComponentDependencyWithParents implements Neo4jComponentDependency {
+export class Neo4jComponentRelationship implements INeo4jComponentRelationship {
   elementId: string;
 
   endNodeElementId: string;
@@ -24,13 +24,13 @@ export class Neo4jComponentDependencyWithParents implements Neo4jComponentDepend
 
   end: Integer;
 
-  readonly originalRelationship: Neo4jComponentDependency;
+  readonly originalRelationship: INeo4jComponentRelationship;
 
   /** Reference to the start node of this relationship */
-  startNode: Neo4jComponentNode | undefined;
+  startNode: INeo4jComponentNode | undefined;
 
   /** Reference to the end node of this relationship */
-  endNode: Neo4jComponentNode | undefined;
+  endNode: INeo4jComponentNode | undefined;
 
   /**
    * Reference to the parents of the start node.
@@ -42,7 +42,7 @@ export class Neo4jComponentDependencyWithParents implements Neo4jComponentDepend
 
   endNodeParents: Node[] | undefined;
 
-  constructor(dep: Neo4jComponentDependency) {
+  constructor(dep: INeo4jComponentRelationship) {
     this.elementId = dep.elementId;
     this.startNodeElementId = dep.startNodeElementId;
     this.endNodeElementId = dep.endNodeElementId;
@@ -54,7 +54,7 @@ export class Neo4jComponentDependencyWithParents implements Neo4jComponentDepend
     this.originalRelationship = dep;
   }
 
-  setNodeReferences(nodes: Neo4jComponentNode[]) {
+  setNodeReferences(nodes: INeo4jComponentNode[]) {
     this.startNode = nodes.find((n) => n.elementId === this.startNodeElementId);
     if (this.startNode) this.startNodeParents = [];
     this.endNode = nodes.find((n) => n.elementId === this.endNodeElementId);
@@ -73,7 +73,7 @@ export class Neo4jComponentDependencyWithParents implements Neo4jComponentDepend
   private getParents(
     currentNode: Node,
     parents: Node[],
-    rels: Neo4jComponentDependency[],
+    rels: INeo4jComponentRelationship[],
     nodes: Node[],
   ): Node[] {
     let parent: Node | undefined;
@@ -87,7 +87,7 @@ export class Neo4jComponentDependencyWithParents implements Neo4jComponentDepend
     return this.getParents(parent, [...parents, parent], rels, nodes);
   }
 
-  findAndSetParents(nodes: Node[], containRelationships: Neo4jComponentDependency[]) {
+  findAndSetParents(nodes: Node[], containRelationships: INeo4jComponentRelationship[]) {
     const startNode = nodes.find((n) => n.data.id === this.startNodeElementId);
     if (startNode) {
       this.startNodeParents = this.getParents(startNode, [startNode], containRelationships, nodes);

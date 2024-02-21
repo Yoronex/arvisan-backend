@@ -1,25 +1,25 @@
 import { Record } from 'neo4j-driver';
-import { Neo4jClient } from '../database/Neo4jClient';
-import { DependencyCycle } from '../entities/violations';
-import { Neo4jComponentDependency, Neo4jComponentNode } from '../database/entities';
-import { ExtendedEdgeData } from '../entities/Edge';
-import { DependencyCycleRender } from '../entities/violations/DependencyCycle';
-import { Graph } from '../entities';
-import GraphElementParserService from './processing/GraphElementParserService';
+import { Neo4jClient } from '../../database/Neo4jClient';
+import { DependencyCycle } from '../../entities/violations';
+import { INeo4jComponentRelationship, INeo4jComponentNode } from '../../database/entities';
+import { ExtendedEdgeData } from '../../entities/Edge';
+import { DependencyCycleRender } from '../../entities/violations/DependencyCycle';
+import { Graph } from '../../entities';
+import GraphElementParserService from '../processing/GraphElementParserService';
 
 interface Neo4jDependencyPath {
   path: {
-    start: Neo4jComponentNode,
-    end: Neo4jComponentNode,
+    start: INeo4jComponentNode,
+    end: INeo4jComponentNode,
     segments: {
-      start: Neo4jComponentNode,
-      relationship: Neo4jComponentDependency,
-      end: Neo4jComponentNode,
+      start: INeo4jComponentNode,
+      relationship: INeo4jComponentRelationship,
+      end: INeo4jComponentNode,
     }[],
   },
 }
 
-export default class GraphViolationService {
+export default class ViolationCyclicalDependenciesService {
   private readonly client: Neo4jClient;
 
   constructor(client?: Neo4jClient) {

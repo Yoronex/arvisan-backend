@@ -1,10 +1,10 @@
 import { Record } from 'neo4j-driver';
 import { Neo4jClient } from '../database/Neo4jClient';
-import { Graph, Neo4jComponentPathWithChunks } from '../entities';
+import { Graph, Neo4jComponentPath } from '../entities';
 import GraphProcessingService, { GraphFilterOptions, Range } from './processing/GraphProcessingService';
-import { Neo4jComponentPath } from '../database/entities';
+import { INeo4jComponentPath } from '../database/entities';
 import GraphPostProcessingService from './processing/GraphPostProcessingService';
-import GraphViolationService from './GraphViolationService';
+import ViolationCyclicalDependenciesService from './violations/ViolationCyclicalDependenciesService';
 import Violations from '../entities/violations';
 import { GraphWithViolations } from '../entities/Graph';
 import GraphPreProcessingService from './processing/GraphPreProcessingService';
@@ -24,7 +24,7 @@ export interface QueryOptions {
 }
 
 export default class GraphVisualizationService {
-  private client: Neo4jClient;
+  private readonly client: Neo4jClient;
 
   constructor() {
     this.client = new Neo4jClient();
@@ -34,20 +34,20 @@ export default class GraphVisualizationService {
     const query = `
       MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')<-[r:CONTAINS*0..5]-(selectedParent) 
       RETURN selectedNode as source, r as path, selectedParent as target`;
-    const records = await this.client.executeQuery<Neo4jComponentPath>(query);
-    return new GraphProcessingService().formatToLPG(records, 'All parents', { selectedId: id }).graph;
+    const records = await this.client.executeQuery<INeo4jComponentPath>(query);
+    return new GraphProcessingService().formatToLPG(records, 'All parents', { selectedId: id });
   }
 
   private async getChildren(id: string, depth: number) {
     const query = `
       MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')-[r:CONTAINS*0..${depth}]->(moduleOrLayer) 
       RETURN selectedNode as source, r as path, moduleOrLayer as target`;
-    const records = await this.client.executeQuery<Neo4jComponentPath>(query);
-    return new GraphProcessingService().formatToLPG(records, 'All sublayers and modules', { selectedId: id }).graph;
+    const records = await this.client.executeQuery<INeo4jComponentPath>(query);
+    return new GraphProcessingService().formatToLPG(records, 'All sublayers and modules', { selectedId: id });
   }
 
   private async processGraphAndGetViolations(
-    neo4jRecords: Record<Neo4jComponentPath>[],
+    neo4jRecords: Record<INeo4jComponentPath>[],
     options: GraphFilterOptions = {},
     treeGraph?: Graph,
   ): Promise<GraphWithViolations> {
@@ -80,7 +80,7 @@ export default class GraphVisualizationService {
       replaceMap = processor.getAbstractionMap(originalRecords, maxDepth);
     }
 
-    let records: Neo4jComponentPathWithChunks[];
+    let records: Neo4jComponentPath[];
     if (replaceMap && replaceMap.size > 0) {
       records = processor.applyAbstraction(originalRecords, replaceMap);
     } else {
@@ -118,11 +118,11 @@ export default class GraphVisualizationService {
   }
 
   private async getGraphViolations(
-    records: Neo4jComponentPathWithChunks[],
+    records: Neo4jComponentPath[],
     graph: Graph,
     replaceMap: Map<string, string> = new Map(),
   ): Promise<Violations> {
-    const violationService = new GraphViolationService(this.client);
+    const violationService = new ViolationCyclicalDependenciesService(this.client);
 
     const cyclicalDependencies = await violationService.getDependencyCycles();
     const formattedCyclDeps = violationService
@@ -168,16 +168,16 @@ export default class GraphVisualizationService {
     ]);
     const { graph: treeGraph } = new GraphPostProcessingService(...graphs);
 
-    const neo4jRecords: Record<Neo4jComponentPath>[] = [];
+    const neo4jRecords: Record<INeo4jComponentPath>[] = [];
 
     if (showDependencies) {
       const records = await this.client
-        .executeQuery<Neo4jComponentPath>(buildQuery(true));
+        .executeQuery<INeo4jComponentPath>(buildQuery(true));
       neo4jRecords.push(...records);
     }
     if (showDependents) {
       const records = await this.client
-        .executeQuery<Neo4jComponentPath>(buildQuery(false));
+        .executeQuery<INeo4jComponentPath>(buildQuery(false));
       neo4jRecords.push(...records);
     }
     const {

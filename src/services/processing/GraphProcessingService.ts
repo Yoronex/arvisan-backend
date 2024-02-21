@@ -1,11 +1,11 @@
 import { Record } from 'neo4j-driver';
 import {
-  Edge, Graph, Neo4jComponentPathWithChunks, Node,
+  Edge, Graph, Neo4jComponentPath, Node,
 } from '../../entities';
-import { Neo4jComponentDependency, Neo4jComponentPath } from '../../database/entities';
+import { INeo4jComponentPath, INeo4jComponentRelationship } from '../../database/entities';
 import GraphElementParserService from './GraphElementParserService';
 import GraphPreProcessingService from './GraphPreProcessingService';
-import { Neo4jDependencyType } from '../../entities/Neo4jComponentPathWithChunks';
+import { Neo4jDependencyType } from '../../entities/Neo4jComponentPath';
 
 export interface Range {
   min: number;
@@ -14,18 +14,23 @@ export interface Range {
 
 /**
  * @property selectedId - ID of the selected node to highlight it
- * @property reverseDirection - Whether the filters should be applied to the
- * "target" node instead of the "source"
  * @property maxDepth - How deep the "CONTAIN" edges on the target side should go.
  * If there is a path between two nodes too deep, create a transitive edge
+ * @property selfEdges - If self edges should be returned
  */
-export interface GraphFilterOptions {
+export interface BasicGraphFilterOptions {
   selectedId?: string;
-  reverseDirection?: boolean;
   maxDepth?: number;
+  selfEdges?: boolean;
+}
+
+/**
+ * @property dependencyRange - How many outgoing arrows a node is allowed to have
+ * @property dependentRange - How many incoming arrows a node is allowed to have
+ */
+export interface GraphFilterOptions extends BasicGraphFilterOptions {
   dependencyRange?: Partial<Range>;
   dependentRange?: Partial<Range>;
-  selfEdges?: boolean;
 }
 
 export default class GraphProcessingService {
@@ -36,12 +41,12 @@ export default class GraphProcessingService {
    * @param maxDepth
    */
   getAbstractionMap(
-    records: Neo4jComponentPathWithChunks[],
+    records: Neo4jComponentPath[],
     maxDepth: number,
   ): Map<string, string> {
     // Replace all transitive nodes with this existing end node (the first of the full path)
     const replaceMap = new Map<string, string>();
-    const addToReplaceMap = (deletedEdges: Neo4jComponentDependency[]) => {
+    const addToReplaceMap = (deletedEdges: INeo4jComponentRelationship[]) => {
       if (deletedEdges.length === 0) return;
       const firstStartNode = deletedEdges[0].startNodeElementId;
       deletedEdges.forEach((edge) => replaceMap
@@ -69,7 +74,7 @@ export default class GraphProcessingService {
    * The resulting list might include duplicate edges.
    * @param records
    */
-  getAllEdges(records: Neo4jComponentPathWithChunks[]): Edge[] {
+  getAllEdges(records: Neo4jComponentPath[]): Edge[] {
     const seenEdges: string[] = [];
     return records
       .map((record) => record.allEdges.map((r): Edge | undefined => {
@@ -108,19 +113,18 @@ export default class GraphProcessingService {
    * @param records List of paths
    * @param abstractionMap Mapping with which node ids should be abstracted to which node ids
    */
-  applyAbstraction(records: Neo4jComponentPathWithChunks[], abstractionMap: Map<string, string>) {
-    return records.map((record): Neo4jComponentPathWithChunks => {
+  applyAbstraction(records: Neo4jComponentPath[], abstractionMap: Map<string, string>) {
+    return records.map((record): Neo4jComponentPath => {
       // eslint-disable-next-line no-param-reassign
-      record.dependencyEdges = record.dependencyEdges
-        .map((chunk) => chunk.map((e) => {
-          if (abstractionMap.has(e.startNodeElementId)) {
-            e.startNodeElementId = abstractionMap.get(e.startNodeElementId) as string;
-          }
-          if (abstractionMap.has(e.endNodeElementId)) {
-            e.endNodeElementId = abstractionMap.get(e.endNodeElementId) as string;
-          }
-          return e;
-        }));
+      record.dependencyEdges = record.dependencyEdges.map((e) => {
+        if (abstractionMap.has(e.startNodeElementId)) {
+          e.startNodeElementId = abstractionMap.get(e.startNodeElementId) as string;
+        }
+        if (abstractionMap.has(e.endNodeElementId)) {
+          e.endNodeElementId = abstractionMap.get(e.endNodeElementId) as string;
+        }
+        return e;
+      });
       return record;
     });
   }
@@ -133,7 +137,7 @@ export default class GraphProcessingService {
    * @param maxRelationships
    */
   applyMinMaxRelationshipsFilter(
-    records: Neo4jComponentPathWithChunks[],
+    records: Neo4jComponentPath[],
     outgoing = true,
     minRelationships?: number,
     maxRelationships?: number,
@@ -237,10 +241,10 @@ export default class GraphProcessingService {
    * @param options
    */
   formatToLPG(
-    records: Record<Neo4jComponentPath>[],
+    records: Record<INeo4jComponentPath>[],
     name: string,
-    options: GraphFilterOptions = {},
-  ) {
+    options: BasicGraphFilterOptions = {},
+  ): Graph {
     const {
       selectedId, maxDepth, selfEdges,
     } = options;
@@ -267,15 +271,10 @@ export default class GraphProcessingService {
       replaceResult.dependencyEdges = this.filterSelfEdges(replaceResult.dependencyEdges);
     }
 
-    const graph: Graph = {
+    return {
       name,
       nodes: replaceResult.nodes,
       edges: replaceResult.dependencyEdges,
-    };
-
-    return {
-      graph,
-      replaceMap,
     };
   }
 }

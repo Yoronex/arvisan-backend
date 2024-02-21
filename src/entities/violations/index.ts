@@ -1,4 +1,4 @@
-import { DependencyCycle, DependencyCycleRender } from './DependencyCycle';
+import { DependencyCycleRender } from './DependencyCycle';
 import { LayerViolation } from './LayerViolation';
 
 export { DependencyCycle } from './DependencyCycle';
