@@ -1,6 +1,6 @@
 import { Record } from 'neo4j-driver';
 import { INeo4jComponentPath } from '../../database/entities';
-import { Neo4jComponentPath, Node } from '../../entities';
+import { IntermediateGraph, Neo4jComponentPath, Node } from '../../entities';
 import GraphElementParserService from './GraphElementParserService';
 
 import { MapSet } from '../../entities/MapSet';
@@ -13,10 +13,13 @@ export default class GraphPreProcessingService {
   /**
    * @param records Unprocessed Neo4j paths
    * @param selectedId ID of the selected node (to highlight it)
+   * @param context Optional graph that can provide more context to the given records,
+   * i.e. when nodes or edges are missing from the given records.
    */
   constructor(
     records: Record<INeo4jComponentPath>[],
     public readonly selectedId?: string,
+    public readonly context?: IntermediateGraph,
   ) {
     this.nodes = this.getAllNodes(records, selectedId);
 
@@ -50,8 +53,9 @@ export default class GraphPreProcessingService {
   private splitRelationshipsIntoChunks(
     records: Record<INeo4jComponentPath>[],
   ): Neo4jComponentPath[] {
+    const contextNodes = this.context ? this.context.nodes.concat(this.nodes) : this.nodes;
     return records
-      .map((record) => (new Neo4jComponentPath(record, this.nodes)));
+      .map((record) => (new Neo4jComponentPath(record, contextNodes)));
   }
 
   /**

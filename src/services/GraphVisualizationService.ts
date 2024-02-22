@@ -60,7 +60,7 @@ export default class GraphVisualizationService {
       dependencyRange, dependentRange, selfEdges,
     } = options;
 
-    const preprocessor = new GraphPreProcessingService(neo4jRecords, selectedId);
+    const preprocessor = new GraphPreProcessingService(neo4jRecords, selectedId, treeGraph);
     const processor = new GraphProcessingService(preprocessor);
 
     if (treeGraph) {
@@ -151,7 +151,7 @@ export default class GraphVisualizationService {
   }: QueryOptions): Promise<IntermediateGraphWithViolations> {
     const buildQuery = (dependencies: boolean = true) => {
       let query = `
-            MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')-[r1:CONTAINS*0..5]->(moduleOrLayer)${!dependencies ? '<' : ''}-[r2*1..${dependencyDepth}]-${dependencies ? '>' : ''}(dependency:Module) // Get all modules that belong to the selected node
+            MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')-[r1:CONTAINS*0..5]->(moduleOrLayer)${!dependencies ? '<' : ''}-[r2*0..${dependencyDepth}]-${dependencies ? '>' : ''}(dependency:Module) // Get all modules that belong to the selected node
             MATCH (selectedNode)<-[:CONTAINS*0..5]-(selectedDomain:Domain)                                   // Get the domain of the selected node
             MATCH (dependency)<-[r3:CONTAINS*0..5]-(parent)                                                  // Get the layers, application and domain of all dependencies
             WHERE true `;
