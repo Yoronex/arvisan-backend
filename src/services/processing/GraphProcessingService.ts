@@ -1,10 +1,12 @@
 import {
-  Edge, Graph, Neo4jComponentPath, Node,
+  Edge, Graph, IntermediateGraph, Neo4jComponentPath, Node,
 } from '../../entities';
 import { INeo4jComponentRelationship } from '../../database/entities';
 import GraphElementParserService from './GraphElementParserService';
 import GraphPreProcessingService from './GraphPreProcessingService';
 import { Neo4jDependencyType } from '../../entities/Neo4jComponentPath';
+
+import { MapSet } from '../../entities/MapSet';
 
 export interface Range {
   min: number;
@@ -79,22 +81,16 @@ export default class GraphProcessingService {
    * The resulting list might include duplicate edges.
    * @param records
    */
-  getAllEdges(records: Neo4jComponentPath[]): Edge[] {
-    const seenEdges: string[] = [];
-    return records
-      .map((record) => record.allEdges.map((r): Edge | undefined => {
-        const edgeId = r.elementId;
-        if (seenEdges.indexOf(edgeId) >= 0) return undefined;
-        seenEdges.push(edgeId);
-        return {
-          data: GraphElementParserService.toEdgeData(r),
-        };
-      }))
-      .flat()
-      .flat()
-      .filter((edge) => edge !== undefined)
-      // Typescript is being stupid, so set typing so all edges exist
-      .map((edge): Edge => edge!);
+  getAllEdges(records: Neo4jComponentPath[]): MapSet<Edge> {
+    const edges = new MapSet<Edge>();
+    records.forEach((record) => record.allEdges.forEach((r) => {
+      const edgeId = r.elementId;
+      if (edges.has(edgeId)) return;
+      edges.set(edgeId, {
+        data: GraphElementParserService.toEdgeData(r),
+      });
+    }));
+    return edges;
   }
 
   /**
@@ -102,15 +98,14 @@ export default class GraphProcessingService {
    * The merged edge's weight will be the sum of both edge weights.
    * @param edges
    */
-  mergeDuplicateEdges(edges: Edge[]): Edge[] {
-    return edges.reduce((newEdges: Edge[], edge) => {
-      const index = newEdges.findIndex((e) => e.data.source === edge.data.source
+  mergeDuplicateEdges(edges: MapSet<Edge>): MapSet<Edge> {
+    return edges.reduce((newEdges: MapSet<Edge>, edge) => {
+      const existingEdge = newEdges.find((e) => e.data.source === edge.data.source
         && e.data.target === edge.data.target);
-      if (index < 0) return [...newEdges, edge];
-      // eslint-disable-next-line no-param-reassign
-      newEdges[index].data.properties.weight += edge.data.properties.weight;
+      if (!existingEdge) return newEdges.add(edge);
+      existingEdge.data.properties.weight += edge.data.properties.weight;
       return newEdges;
-    }, []);
+    }, new MapSet<Edge>());
   }
 
   /**
@@ -128,7 +123,7 @@ export default class GraphProcessingService {
         if (abstractionMap.has(e.endNodeElementId)) {
           e.endNodeElementId = abstractionMap.get(e.endNodeElementId) as string;
         }
-        e.setNodeReferences([...this.original.nodes, ...this.contextGraph.nodes]);
+        e.setNodeReferences(MapSet.from(...this.contextGraph.nodes).concat(this.original.nodes));
         return e;
       });
       return record;
@@ -190,32 +185,32 @@ export default class GraphProcessingService {
   /**
    * Only keep the nodes that are the start or end point of an edge
    */
-  filterNodesByEdges(nodes: Node[], edges: Edge[]): Node[] {
+  filterNodesByEdges(nodes: MapSet<Node>, edges: MapSet<Edge>): MapSet<Node> {
     const nodesOnPaths: string[] = edges
       // Get the source and target from each edge
-      .map((e) => [e.data.source, e.data.target])
+      .map((e): string[] => [e.data.source, e.data.target])
       // Flatten the 2D array
       .flat()
       // Remove duplicates
       .filter((n1, i, all) => i === all.findIndex((n2) => n1 === n2));
     // Filter the actual node objects
-    return nodes.filter((n) => nodesOnPaths.includes(n.data.id));
+    return nodes.filterByIds(nodesOnPaths);
   }
 
   /**
    * Remove all self-edges (edges where the source and target is the same node)
    */
-  filterSelfEdges(edges: Edge[]): Edge[] {
+  filterSelfEdges(edges: MapSet<Edge>): MapSet<Edge> {
     return edges.filter((e) => e.data.source !== e.data.target);
   }
 
   /**
    * Replace every given edge with a parent relationship, which is supported by Cytoscape.
    */
-  addParentRelationship(nodes: Node[], parentEdges: Edge[]): Node[] {
-    const nodesCopy: Node[] = [...nodes];
+  addParentRelationship(nodes: MapSet<Node>, parentEdges: MapSet<Edge>): MapSet<Node> {
+    const nodesCopy: MapSet<Node> = new MapSet(nodes);
     parentEdges.forEach((e) => {
-      const target = nodesCopy.find((n) => n.data.id === e.data.target);
+      const target = nodesCopy.get(e.data.target);
       if (!target) return;
       target.data.parent = e.data.source;
     });
@@ -226,10 +221,10 @@ export default class GraphProcessingService {
    *
    */
   replaceEdgeWithParentRelationship(
-    nodes: Node[],
-    edges: Edge[],
+    nodes: MapSet<Node>,
+    edges: MapSet<Edge>,
     relationship: string,
-  ): { nodes: Node[], dependencyEdges: Edge[] } {
+  ): { nodes: MapSet<Node>, dependencyEdges: MapSet<Edge> } {
     // Split the list of edges into "contain" edges and all other edges
     const containEdges = edges.filter((e) => e.data.interaction === relationship);
     const dependencyEdges = edges.filter((e) => e.data.interaction !== relationship);
@@ -248,7 +243,7 @@ export default class GraphProcessingService {
   formatToLPG(
     name: string,
     options: BasicGraphFilterOptions = {},
-  ): Graph {
+  ): IntermediateGraph {
     const {
       maxDepth, selfEdges,
     } = options;

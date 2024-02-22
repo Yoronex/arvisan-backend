@@ -3,26 +3,24 @@ import { INeo4jComponentPath } from '../../database/entities';
 import { Neo4jComponentPath, Node } from '../../entities';
 import GraphElementParserService from './GraphElementParserService';
 
+import { MapSet } from '../../entities/MapSet';
+
 export default class GraphPreProcessingService {
-  public readonly nodes: Node[];
+  public readonly nodes: MapSet<Node>;
 
   public readonly records: Neo4jComponentPath[];
 
   /**
    * @param records Unprocessed Neo4j paths
    * @param selectedId ID of the selected node (to highlight it)
-   * @param addNodeReferences Whether each relationship in each path should get a
-   * reference to its start and end nodes. Disable if it is not needed to increase
-   * performance.
    */
   constructor(
     records: Record<INeo4jComponentPath>[],
     public readonly selectedId?: string,
-    addNodeReferences = true,
   ) {
     this.nodes = this.getAllNodes(records, selectedId);
 
-    const chunkRecords = this.splitRelationshipsIntoChunks(records, addNodeReferences);
+    const chunkRecords = this.splitRelationshipsIntoChunks(records);
     this.records = this.onlyKeepLongestPaths(chunkRecords);
   }
 
@@ -31,40 +29,31 @@ export default class GraphPreProcessingService {
    * @param records
    * @param selectedId
    */
-  private getAllNodes(records: Record<INeo4jComponentPath>[], selectedId?: string): Node[] {
-    const seenNodes: string[] = [];
-    return records
-      .map((r) => [r.get('source'), r.get('target')]
-        .map((field): Node | undefined => {
-          const nodeId = field.elementId;
-          if (seenNodes.indexOf(nodeId) >= 0) return undefined;
-          seenNodes.push(nodeId);
-          return {
-            data: GraphElementParserService.toNodeData(field, selectedId),
-          };
-        }))
-      .flat()
-      .filter((node) => node !== undefined) as Node[];
+  private getAllNodes(records: Record<INeo4jComponentPath>[], selectedId?: string): MapSet<Node> {
+    const nodeSet: MapSet<Node> = new MapSet();
+    records.map((r) => [r.get('source'), r.get('target')]
+      .forEach((field) => {
+        const nodeId = field.elementId;
+        if (nodeSet.has(nodeId)) return;
+        nodeSet.set(nodeId, {
+          data: GraphElementParserService.toNodeData(field, selectedId),
+        });
+      }));
+    return nodeSet;
   }
 
   /**
    * Return the given records, but split/group the relationships into chunks of the same
    * type of relationship. See also this.groupRelationships().
    * @param records
-   * @param addNodeReferences Whether each relationship in each path should get a
-   * reference to its start and end nodes. Disable if it is not needed to increase
-   * performance.
    */
   private splitRelationshipsIntoChunks(
     records: Record<INeo4jComponentPath>[],
-    addNodeReferences = true,
   ): Neo4jComponentPath[] {
     const newRecords = records
       .map((record) => (new Neo4jComponentPath(record)));
-    if (addNodeReferences) {
-      newRecords.forEach((r) => r.dependencyEdges.flat()
-        .forEach((d) => d.setNodeReferences(this.nodes)));
-    }
+    newRecords.forEach((r) => r.dependencyEdges.flat()
+      .forEach((d) => d.setNodeReferences(this.nodes)));
     return newRecords;
   }
 

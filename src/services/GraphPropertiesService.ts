@@ -24,7 +24,7 @@ export default class GraphPropertiesService {
   }
 
   private formatDomains(records: Record<INeo4jComponentPath>[]): Domain[] {
-    const preprocessor = new GraphPreProcessingService(records, undefined, false);
+    const preprocessor = new GraphPreProcessingService(records, undefined);
     const { nodes, edges } = new GraphProcessingService(preprocessor).formatToLPG('All domains', {
       maxDepth: 0,
       selfEdges: true,

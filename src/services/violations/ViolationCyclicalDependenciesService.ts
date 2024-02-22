@@ -4,7 +4,7 @@ import { DependencyCycle } from '../../entities/violations';
 import { INeo4jComponentRelationship, INeo4jComponentNode } from '../../database/entities';
 import { ExtendedEdgeData } from '../../entities/Edge';
 import { DependencyCycleRender } from '../../entities/violations/DependencyCycle';
-import { Graph } from '../../entities';
+import { Graph, IntermediateGraph } from '../../entities';
 import GraphElementParserService from '../processing/GraphElementParserService';
 import { ViolationBaseService } from './ViolationBaseService';
 
@@ -67,7 +67,7 @@ export default class ViolationCyclicalDependenciesService {
    */
   public extractAndAbstractDependencyCycles(
     dependencyCycles: DependencyCycle[],
-    graph: Graph,
+    graph: IntermediateGraph,
     replaceMaps: Map<string, string>,
   ): DependencyCycleRender[] {
     const cycleIndex = (d1: DependencyCycle) => `${d1.node.id}--${d1.path.map((p) => p.id).join('-')}`;
@@ -84,9 +84,9 @@ export default class ViolationCyclicalDependenciesService {
       newDep.path = newDep.path.map((e) => {
         const newEdge: ExtendedEdgeData = { ...e };
         const replaceSource = replaceMaps.get(e.source);
-        const replaceSourceNode = graph.nodes.find((n) => n.data.id === replaceSource);
+        const replaceSourceNode = graph.nodes.get(replaceSource || '');
         const replaceTarget = replaceMaps.get(e.target);
-        const replaceTargetNode = graph.nodes.find((n) => n.data.id === replaceTarget);
+        const replaceTargetNode = graph.nodes.get(replaceTarget || '');
         if (replaceSource && replaceSourceNode) {
           newEdge.source = replaceSource;
           newEdge.sourceNode = replaceSourceNode.data;

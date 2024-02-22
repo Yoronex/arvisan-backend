@@ -1,11 +1,10 @@
-import { Graph } from '../../entities/Graph';
-import { Edge } from '../../entities/Edge';
-import { Node } from '../../entities/Node';
+import { IntermediateGraph, Edge, Node } from '../../entities';
+import { MapSet } from '../../entities/MapSet';
 
 export default class GraphPostProcessingService {
-  private readonly _graph: Graph;
+  private readonly _graph: IntermediateGraph;
 
-  constructor(...graphs: Graph[]) {
+  constructor(...graphs: IntermediateGraph[]) {
     if (graphs.length === 1) {
       [this._graph] = graphs;
     } else {
@@ -19,26 +18,18 @@ export default class GraphPostProcessingService {
     return this._graph;
   }
 
-  private filterDuplicateNodes(nodes: Node[]): Node[] {
-    return nodes.filter((n, i, all) => i === all.findIndex((n2) => n2.data.id === n.data.id));
-  }
-
-  private filterDuplicateEdges(edges: Edge[]): Edge[] {
-    return edges.filter((e, i, all) => i === all.findIndex((e2) => e2.data.id === e.data.id));
-  }
-
   /**
    * Merge two or more graphs into a single graph. Take out any duplicate nodes or edges
    * @param graphs
    * @private
    */
-  private mergeGraphs(...graphs: Graph[]): Graph {
+  private mergeGraphs(...graphs: IntermediateGraph[]): IntermediateGraph {
     const nodes = graphs.map((g) => g.nodes).flat();
     const edges = graphs.map((g) => g.edges).flat();
     const graph = {
       name: `Merged graph of '${graphs.map((g) => g.name).join(', ')}'`,
-      nodes: this.filterDuplicateNodes(nodes),
-      edges: this.filterDuplicateEdges(edges),
+      nodes: new MapSet<Node>(...nodes),
+      edges: new MapSet<Edge>(...edges),
     };
     this.validateGraph(graph);
     return graph;
@@ -50,8 +41,8 @@ export default class GraphPostProcessingService {
    * @param graph
    * @throws Error One or more edges is missing its source and/or target node
    */
-  public validateGraph(graph: Graph) {
-    const nodeIds = graph.nodes.map((n) => n.data.id);
+  public validateGraph(graph: IntermediateGraph) {
+    const nodeIds = [...graph.nodes.keys()];
     const invalidEdges = graph.edges
       .map((e): Edge => ({
         data: {

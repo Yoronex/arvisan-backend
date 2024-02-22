@@ -4,6 +4,7 @@ import {
 import { TsoaResponse } from '@tsoa/runtime';
 import GraphVisualizationService, { QueryOptions } from '../services/GraphVisualizationService';
 import { GraphWithViolations } from '../entities/Graph';
+import GraphElementParserService from '../services/processing/GraphElementParserService';
 
 interface ErrorResponse {
   message: string;
@@ -19,7 +20,14 @@ export class GraphController extends Controller {
       @Res() errorResponse: TsoaResponse<400, ErrorResponse>,
   ): Promise<GraphWithViolations> {
     try {
-      return await new GraphVisualizationService().getGraphFromSelectedNode(params);
+      const {
+        violations,
+        graph,
+      } = await new GraphVisualizationService().getGraphFromSelectedNode(params);
+      return {
+        graph: GraphElementParserService.toGraph(graph),
+        violations,
+      };
     } catch (e: any) {
       if (e.name === 'Neo4jError' && e.code === 'Neo.ClientError.Transaction.TransactionTimedOutClientConfiguration') {
         this.setStatus(400);

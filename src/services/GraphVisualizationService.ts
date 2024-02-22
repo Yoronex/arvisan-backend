@@ -1,12 +1,12 @@
 import { Record } from 'neo4j-driver';
 import { Neo4jClient } from '../database/Neo4jClient';
-import { Graph, Neo4jComponentPath } from '../entities';
+import { IntermediateGraph, Neo4jComponentPath } from '../entities';
 import GraphProcessingService, { GraphFilterOptions, Range } from './processing/GraphProcessingService';
 import { INeo4jComponentPath } from '../database/entities';
 import GraphPostProcessingService from './processing/GraphPostProcessingService';
 import ViolationCyclicalDependenciesService from './violations/ViolationCyclicalDependenciesService';
 import Violations from '../entities/violations';
-import { GraphWithViolations } from '../entities/Graph';
+import { GraphWithViolations, IntermediateGraphWithViolations } from '../entities/Graph';
 import GraphPreProcessingService from './processing/GraphPreProcessingService';
 import { ViolationLayerService } from './violations';
 import { ViolationBaseService } from './violations/ViolationBaseService';
@@ -36,7 +36,7 @@ export default class GraphVisualizationService {
       MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')<-[r:CONTAINS*0..5]-(selectedParent) 
       RETURN selectedNode as source, r as path, selectedParent as target`;
     const records = await this.client.executeQuery<INeo4jComponentPath>(query);
-    const preprocessor = new GraphPreProcessingService(records, id, false);
+    const preprocessor = new GraphPreProcessingService(records, id);
     return new GraphProcessingService(preprocessor).formatToLPG('All parents');
   }
 
@@ -45,7 +45,7 @@ export default class GraphVisualizationService {
       MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')-[r:CONTAINS*0..${depth}]->(moduleOrLayer) 
       RETURN selectedNode as source, r as path, moduleOrLayer as target`;
     const records = await this.client.executeQuery<INeo4jComponentPath>(query);
-    const preprocessor = new GraphPreProcessingService(records, id, false);
+    const preprocessor = new GraphPreProcessingService(records, id);
     return new GraphProcessingService(preprocessor).formatToLPG('All sublayers and modules');
   }
 
@@ -53,8 +53,8 @@ export default class GraphVisualizationService {
     neo4jRecords: Record<INeo4jComponentPath>[],
     selectedId?: string,
     options: GraphFilterOptions = {},
-    treeGraph?: Graph,
-  ): Promise<GraphWithViolations> {
+    treeGraph?: IntermediateGraph,
+  ): Promise<IntermediateGraphWithViolations> {
     const {
       maxDepth,
       dependencyRange, dependentRange, selfEdges,
@@ -69,7 +69,7 @@ export default class GraphVisualizationService {
         .flat().flat();
       preprocessor.records.forEach((r) => {
         r.dependencyEdges.flat().forEach((dep) => {
-          dep.findAndSetParents([...treeGraph.nodes, ...preprocessor.nodes], containRelationships);
+          dep.findAndSetParents(treeGraph.nodes.concat(preprocessor.nodes), containRelationships);
         });
       });
     }
@@ -104,7 +104,7 @@ export default class GraphVisualizationService {
       replaceResult.dependencyEdges = processor.filterSelfEdges(replaceResult.dependencyEdges);
     }
 
-    const graph: Graph = {
+    const graph: IntermediateGraph = {
       name: 'Dependency graph',
       nodes: replaceResult.nodes,
       edges: replaceResult.dependencyEdges,
@@ -124,7 +124,7 @@ export default class GraphVisualizationService {
 
   private async getGraphViolations(
     records: Neo4jComponentPath[],
-    graph: Graph,
+    graph: IntermediateGraph,
     replaceMap: Map<string, string> = new Map(),
   ): Promise<Violations> {
     const violationService = new ViolationCyclicalDependenciesService(this.client);
@@ -148,7 +148,7 @@ export default class GraphVisualizationService {
   public async getGraphFromSelectedNode({
     id, layerDepth, dependencyDepth, onlyExternalRelations, onlyInternalRelations,
     showDependencies, showDependents, dependencyRange, dependentRange, selfEdges,
-  }: QueryOptions): Promise<GraphWithViolations> {
+  }: QueryOptions): Promise<IntermediateGraphWithViolations> {
     const buildQuery = (dependencies: boolean = true) => {
       let query = `
             MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')-[r1:CONTAINS*0..5]->(moduleOrLayer)${!dependencies ? '<' : ''}-[r2*1..${dependencyDepth}]-${dependencies ? '>' : ''}(dependency:Module) // Get all modules that belong to the selected node
@@ -170,7 +170,7 @@ export default class GraphVisualizationService {
       return query;
     };
 
-    const graphs: Graph[] = await Promise.all([
+    const graphs: IntermediateGraph[] = await Promise.all([
       this.getParents(id),
       this.getChildren(id, layerDepth),
     ]);

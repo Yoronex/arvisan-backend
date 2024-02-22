@@ -1,7 +1,8 @@
 import { INeo4jComponentRelationship, INeo4jComponentNode } from '../../database/entities';
 import { NodeData } from '../../entities/Node';
 import { EdgeData } from '../../entities/Edge';
-import { Neo4jComponentRelationship } from '../../entities/Neo4jComponentRelationship';
+import { Neo4jComponentRelationship } from '../../entities';
+import { Graph, IntermediateGraph } from '../../entities/Graph';
 
 export default class GraphElementParserService {
   /**
@@ -44,6 +45,14 @@ export default class GraphElementParserService {
           subLayer: 'violations' in edge ? edge.violations.subLayer : false,
         },
       },
+    };
+  }
+
+  public static toGraph(intermediateGraph: IntermediateGraph): Graph {
+    return {
+      name: intermediateGraph.name,
+      nodes: [...intermediateGraph.nodes.values()],
+      edges: [...intermediateGraph.edges.values()],
     };
   }
 }

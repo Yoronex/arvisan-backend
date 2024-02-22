@@ -2,6 +2,7 @@ import { Integer } from 'neo4j-driver';
 import { INeo4jComponentRelationship } from '../database/entities';
 import { Node } from './Node';
 import { EdgeViolations } from './Edge';
+import { MapSet } from './MapSet';
 
 export class Neo4jComponentRelationship implements INeo4jComponentRelationship {
   elementId: string;
@@ -53,9 +54,9 @@ export class Neo4jComponentRelationship implements INeo4jComponentRelationship {
     this.originalRelationship = dep;
   }
 
-  setNodeReferences(nodes: Node[]) {
-    this.startNode = nodes.find((n) => n.data.id === this.startNodeElementId);
-    this.endNode = nodes.find((n) => n.data.id === this.endNodeElementId);
+  setNodeReferences(nodes: MapSet<Node>) {
+    this.startNode = nodes.get(this.startNodeElementId);
+    this.endNode = nodes.get(this.endNodeElementId);
   }
 
   /**
@@ -71,25 +72,25 @@ export class Neo4jComponentRelationship implements INeo4jComponentRelationship {
     currentNode: Node,
     parents: Node[],
     rels: INeo4jComponentRelationship[],
-    nodes: Node[],
+    nodes: MapSet<Node>,
   ): Node[] {
     let parent: Node | undefined;
     if (currentNode.data.parent) {
-      parent = nodes.find((n) => n.data.id === currentNode.data.parent);
+      parent = nodes.get(currentNode.data.parent);
     } else {
       const rel = rels.find((r) => r.endNodeElementId === currentNode.data.id);
-      if (rel) parent = nodes.find((n) => n.data.id === rel.startNodeElementId);
+      if (rel) parent = nodes.get(rel.startNodeElementId);
     }
     if (!parent) return parents;
     return this.getParents(parent, [...parents, parent], rels, nodes);
   }
 
-  findAndSetParents(nodes: Node[], containRelationships: INeo4jComponentRelationship[]) {
-    const startNode = nodes.find((n) => n.data.id === this.startNodeElementId);
+  findAndSetParents(nodes: MapSet<Node>, containRelationships: INeo4jComponentRelationship[]) {
+    const startNode = nodes.get(this.startNodeElementId);
     if (startNode) {
       this.startNodeParents = this.getParents(startNode, [startNode], containRelationships, nodes);
     }
-    const endNode = nodes.find((n) => n.data.id === this.endNodeElementId);
+    const endNode = nodes.get(this.endNodeElementId);
     if (endNode) {
       this.endNodeParents = this.getParents(endNode, [endNode], containRelationships, nodes);
     }
