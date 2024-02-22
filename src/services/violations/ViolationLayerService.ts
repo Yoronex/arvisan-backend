@@ -95,9 +95,13 @@ export class ViolationLayerService {
       .filter((r) => r.violations.subLayer)
       .map((r): LayerViolation => ({
         ...GraphElementParserService.toEdgeData(r),
-        actualEdges: [GraphElementParserService.toEdgeData(r.originalRelationship)],
-        sourceNode: r.startNode?.data,
-        targetNode: r.endNode?.data,
+        actualEdges: [{
+          ...GraphElementParserService.toEdgeData(r.originalRelationship),
+          sourceNode: r.originalStartNode.data,
+          targetNode: r.originalEndNode.data,
+        }],
+        sourceNode: r.startNode?.data ?? r.originalStartNode.data,
+        targetNode: r.endNode?.data ?? r.originalEndNode.data,
       }))
       .reduce((mergedEdges: LayerViolation[], e) => {
         const index = mergedEdges

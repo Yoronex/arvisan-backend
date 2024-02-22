@@ -1,4 +1,4 @@
-import { EdgeData, ExtendedEdgeData } from '../Edge';
+import { ExtendedEdgeData } from '../Edge';
 
 export interface LayerViolationSpec {
   fromSublayer: string;
@@ -6,5 +6,5 @@ export interface LayerViolationSpec {
 }
 
 export interface LayerViolation extends ExtendedEdgeData {
-  actualEdges: EdgeData[]; // List, because an abstraction may include multiple "real" edges
+  actualEdges: ExtendedEdgeData[]; // List, because an abstraction may include multiple "real" edges
 }

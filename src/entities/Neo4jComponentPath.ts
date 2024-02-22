@@ -1,6 +1,8 @@
 import { Record } from 'neo4j-driver';
 import { INeo4jComponentRelationship, INeo4jComponentNode, INeo4jComponentPath } from '../database/entities';
 import { Neo4jComponentRelationship } from './Neo4jComponentRelationship';
+import { MapSet } from './MapSet';
+import { Node } from './Node';
 
 export enum Neo4jDependencyType {
   NONE,
@@ -28,11 +30,13 @@ export class Neo4jComponentPath {
    * If there are only "CONTAINS" relationships in the given list, the result will contain
    * two lists, one with relationships going "down" and the other going "up".
    * @param relationships
+   * @param nodes
    * @param containEdgeName
    * @private
    */
   private groupAndSet(
     relationships: INeo4jComponentRelationship[],
+    nodes: MapSet<Node>,
     containEdgeName = 'CONTAINS',
   ) {
     if (relationships.length === 0) return;
@@ -71,15 +75,15 @@ export class Neo4jComponentPath {
     // eslint-disable-next-line prefer-destructuring
     this.containSourceEdges = chunks[0];
     this.dependencyEdges = chunks.slice(1, chunks.length - 1).flat()
-      .map((dep) => new Neo4jComponentRelationship(dep));
+      .map((dep) => new Neo4jComponentRelationship(dep, nodes));
     this.containTargetEdges = chunks[chunks.length - 1];
   }
 
-  constructor(record: Record<INeo4jComponentPath>) {
+  constructor(record: Record<INeo4jComponentPath>, nodes: MapSet<Node>) {
     this.source = record.get('source');
     this.target = record.get('target');
 
-    this.groupAndSet(record.get('path'));
+    this.groupAndSet(record.get('path'), nodes);
 
     const finalSourceModuleId = this
       .containSourceEdges[this.containSourceEdges.length - 1]?.endNodeElementId

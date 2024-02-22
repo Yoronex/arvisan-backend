@@ -50,11 +50,8 @@ export default class GraphPreProcessingService {
   private splitRelationshipsIntoChunks(
     records: Record<INeo4jComponentPath>[],
   ): Neo4jComponentPath[] {
-    const newRecords = records
-      .map((record) => (new Neo4jComponentPath(record)));
-    newRecords.forEach((r) => r.dependencyEdges.flat()
-      .forEach((d) => d.setNodeReferences(this.nodes)));
-    return newRecords;
+    return records
+      .map((record) => (new Neo4jComponentPath(record, this.nodes)));
   }
 
   /**

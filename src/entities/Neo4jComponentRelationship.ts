@@ -27,6 +27,10 @@ export class Neo4jComponentRelationship implements INeo4jComponentRelationship {
 
   readonly originalRelationship: INeo4jComponentRelationship;
 
+  readonly originalStartNode: Node;
+
+  readonly originalEndNode: Node;
+
   /** Reference to the start node of this relationship */
   startNode: Node | undefined;
 
@@ -42,7 +46,7 @@ export class Neo4jComponentRelationship implements INeo4jComponentRelationship {
 
   endNodeParents: Node[] = [];
 
-  constructor(dep: INeo4jComponentRelationship) {
+  constructor(dep: INeo4jComponentRelationship, nodes: MapSet<Node>) {
     this.elementId = dep.elementId;
     this.startNodeElementId = dep.startNodeElementId;
     this.endNodeElementId = dep.endNodeElementId;
@@ -52,6 +56,16 @@ export class Neo4jComponentRelationship implements INeo4jComponentRelationship {
     this.start = dep.start;
     this.end = dep.end;
     this.originalRelationship = dep;
+
+    const startNode = nodes.get(this.startNodeElementId);
+    if (startNode == null) throw new Error(`Start node (ID ${this.startNodeElementId}) for edge ${this.elementId} not found!`);
+    this.startNode = startNode;
+    this.originalStartNode = startNode;
+
+    const endNode = nodes.get(this.endNodeElementId);
+    if (endNode == null) throw new Error(`Start node (ID ${this.startNodeElementId}) for edge ${this.elementId} not found!`);
+    this.endNode = endNode;
+    this.originalEndNode = endNode;
   }
 
   setNodeReferences(nodes: MapSet<Node>) {
