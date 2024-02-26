@@ -15,8 +15,9 @@ export interface QueryOptions {
   id: string;
   layerDepth: number,
   dependencyDepth: number,
-  onlyInternalRelations?: boolean,
-  onlyExternalRelations?: boolean,
+  showSelectedInternalRelations?: boolean,
+  showDomainInternalRelations?: boolean,
+  showExternalRelations?: boolean,
   showOutgoing?: boolean,
   showIncoming?: boolean,
   outgoingRange?: Partial<Range>,
@@ -146,20 +147,27 @@ export default class VisualizationService {
   }
 
   public async getGraphFromSelectedNode({
-    id, layerDepth, dependencyDepth, onlyExternalRelations, onlyInternalRelations,
+    id, layerDepth, dependencyDepth,
+    showExternalRelations, showDomainInternalRelations, showSelectedInternalRelations,
     showOutgoing, showIncoming, outgoingRange, incomingRange, selfEdges,
   }: QueryOptions): Promise<IntermediateGraphWithViolations> {
     const buildQuery = (outgoing: boolean = true) => {
       let query = `
-            MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')-[r1:CONTAINS*0..5]->(moduleOrLayer)${!outgoing ? '<' : ''}-[r2*0..${dependencyDepth}]-${outgoing ? '>' : ''}(dependency:Module) // Get all modules that belong to the selected node
-            MATCH (selectedNode)<-[:CONTAINS*0..5]-(selectedDomain:Domain)                                   // Get the domain of the selected node
-            MATCH (dependency)<-[r3:CONTAINS*0..5]-(parent)                                                  // Get the layers, application and domain of all dependencies
-            WHERE true `;
-      if (onlyInternalRelations) {
-        query += 'AND (selectedDomain:Domain)-[:CONTAINS*]->(dependency) '; // Dependency should be in the same domain
+            // Get all modules that belong to the selected node
+            MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')-[r1:CONTAINS*0..5]->(moduleOrLayer)${!outgoing ? '<' : ''}-[r2*0..${dependencyDepth}]-${outgoing ? '>' : ''}(dependency:Module)
+            // Get the domain of the selected node
+            MATCH (selectedNode)<-[:CONTAINS*0..5]-(selectedDomain:Domain)
+            // Get the layers, application and domain of all dependencies
+            MATCH (dependency)<-[r3:CONTAINS*0..5]-(parent)
+            WHERE false `;
+      if (showSelectedInternalRelations && !showDomainInternalRelations) {
+        query += 'OR (selectedNode)-[:CONTAINS*]->(dependency) ';
       }
-      if (onlyExternalRelations) {
-        query += 'AND NOT (selectedDomain:Domain)-[:CONTAINS*]->(dependency) '; // Dependency should not be in the same domain
+      if (showDomainInternalRelations) {
+        query += 'OR (selectedDomain:Domain)-[:CONTAINS*]->(dependency) '; // Dependency should be in the same domain
+      }
+      if (showExternalRelations) {
+        query += 'OR NOT (selectedDomain:Domain)-[:CONTAINS*]->(dependency) '; // Dependency should not be in the same domain
       }
 
       if (outgoing) {
