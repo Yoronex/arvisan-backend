@@ -34,7 +34,7 @@ export default class GraphPreProcessingService {
    */
   private getAllNodes(records: Record<INeo4jComponentPath>[], selectedId?: string): MapSet<Node> {
     const nodeSet: MapSet<Node> = new MapSet();
-    records.map((r) => [r.get('source'), r.get('target')]
+    records.forEach((r) => [r.get('source'), r.get('target')]
       .forEach((field) => {
         const nodeId = field.elementId;
         if (nodeSet.has(nodeId)) return;

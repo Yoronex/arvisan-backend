@@ -58,12 +58,16 @@ export class Neo4jComponentRelationship implements INeo4jComponentRelationship {
     this.originalRelationship = dep;
 
     const startNode = nodes.get(this.startNodeElementId);
-    if (startNode == null) throw new Error(`Start node (ID ${this.startNodeElementId}) for edge ${this.elementId} not found!`);
+    if (startNode == null) {
+      throw new Error(`Start node (ID ${this.startNodeElementId}) for edge ${this.elementId} not found!`);
+    }
     this.startNode = startNode;
     this.originalStartNode = startNode;
 
     const endNode = nodes.get(this.endNodeElementId);
-    if (endNode == null) throw new Error(`Start node (ID ${this.startNodeElementId}) for edge ${this.elementId} not found!`);
+    if (endNode == null) {
+      throw new Error(`End node (ID ${this.endNodeElementId}) for edge ${this.elementId} not found!`);
+    }
     this.endNode = endNode;
     this.originalEndNode = endNode;
   }

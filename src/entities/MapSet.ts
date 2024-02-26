@@ -35,7 +35,7 @@ export class MapSet<T extends Node | Edge> extends Map<string, T> {
    * @param sets
    */
   concat(...sets: MapSet<T>[]): MapSet<T> {
-    return new MapSet(...sets);
+    return new MapSet(this, ...sets);
   }
 
   filterByIds(ids: string[]): MapSet<T> {
