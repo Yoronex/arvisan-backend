@@ -31,12 +31,14 @@ export class Neo4jComponentPath {
    * two lists, one with relationships going "down" and the other going "up".
    * @param relationships
    * @param nodes
+   * @param selectedNode
    * @param containEdgeName
    * @private
    */
   private groupAndSet(
     relationships: INeo4jComponentRelationship[],
     nodes: MapSet<Node>,
+    selectedNode: INeo4jComponentNode,
     containEdgeName = 'CONTAINS',
   ) {
     if (relationships.length === 0) return;
@@ -56,7 +58,9 @@ export class Neo4jComponentPath {
       const index = chunks[0].findIndex((e) => e.elementId === lastContainEdge.elementId);
       // The last CONTAIN edge in the chain exists only once, so we are not going down.
       // Push an empty array.
-      if (index === chunks[0].length - 1) {
+      if (index === chunks[0].length - 1 && selectedNode.labels.includes('Domain')) {
+        chunks.push([]);
+      } else if (index === chunks[0].length - 1) {
         chunks.unshift([]);
       } else {
         const dependencyParents = chunks[0].splice(index + 1, chunks[0].length - 1 - index);
@@ -83,7 +87,7 @@ export class Neo4jComponentPath {
     this.source = record.get('source');
     this.target = record.get('target');
 
-    this.groupAndSet(record.get('path'), nodes);
+    this.groupAndSet(record.get('path'), nodes, this.source);
 
     const finalSourceModuleId = this
       .containSourceEdges[this.containSourceEdges.length - 1]?.endNodeElementId
