@@ -8,6 +8,8 @@ import { MapSet } from '../../entities/MapSet';
 export default class GraphPreProcessingService {
   public readonly nodes: MapSet<Node>;
 
+  public readonly selectedNode?: Node;
+
   public readonly records: Neo4jComponentPath[];
 
   /**
@@ -22,6 +24,7 @@ export default class GraphPreProcessingService {
     public readonly context?: IntermediateGraph,
   ) {
     this.nodes = this.getAllNodes(records, selectedId);
+    this.selectedNode = this.nodes.get(selectedId);
 
     const chunkRecords = this.splitRelationshipsIntoChunks(records);
     this.records = this.onlyKeepLongestPaths(chunkRecords);
@@ -55,7 +58,7 @@ export default class GraphPreProcessingService {
   ): Neo4jComponentPath[] {
     const contextNodes = this.context ? this.context.nodes.concat(this.nodes) : this.nodes;
     return records
-      .map((record) => (new Neo4jComponentPath(record, contextNodes)));
+      .map((record) => (new Neo4jComponentPath(record, contextNodes, this.selectedNode)));
   }
 
   /**

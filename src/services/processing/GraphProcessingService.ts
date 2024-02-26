@@ -194,7 +194,7 @@ export default class GraphProcessingService {
       // Remove duplicates
       .filter((n1, i, all) => i === all.findIndex((n2) => n1 === n2));
     // Filter the actual node objects
-    return nodes.filterByIds(nodesOnPaths);
+    return nodes.filterByKeys(nodesOnPaths);
   }
 
   /**

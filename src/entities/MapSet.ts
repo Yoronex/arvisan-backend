@@ -25,6 +25,14 @@ export class MapSet<T extends Node | Edge> extends Map<string, T> {
     return set;
   }
 
+  /**
+   * @inheritDoc
+   */
+  get(key: string | undefined): T | undefined {
+    if (key === undefined) return undefined;
+    return super.get(key);
+  }
+
   add(element: T): MapSet<T> {
     this.set(element.data.id, element);
     return this;
@@ -38,7 +46,11 @@ export class MapSet<T extends Node | Edge> extends Map<string, T> {
     return new MapSet(this, ...sets);
   }
 
-  filterByIds(ids: string[]): MapSet<T> {
+  /**
+   * Return a copy of this MapSet, but only with the elements that have the given keys
+   * @param ids
+   */
+  filterByKeys(ids: string[]): MapSet<T> {
     const newMapSet = new MapSet<T>();
     this.forEach((value, key) => {
       if (ids.includes(key)) newMapSet.set(key, value);
@@ -46,6 +58,10 @@ export class MapSet<T extends Node | Edge> extends Map<string, T> {
     return newMapSet;
   }
 
+  /**
+   * Return a copy of this MapSet, but only with the entries that satisfy the given boolean function
+   * @param callbackfn
+   */
   filter(callbackfn: (value: T, key: string, map: Map<string, T>) => boolean): MapSet<T> {
     const result = new MapSet<T>();
     this.forEach((value, key, map) => {
