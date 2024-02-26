@@ -31,14 +31,14 @@ export class Neo4jComponentPath {
    * two lists, one with relationships going "down" and the other going "up".
    * @param relationships
    * @param nodes
-   * @param selectedNode
+   * @param selectedDomain
    * @param containEdgeName
    * @private
    */
   private groupAndSet(
     relationships: INeo4jComponentRelationship[],
     nodes: MapSet<Node>,
-    selectedNode?: Node,
+    selectedDomain: boolean,
     containEdgeName = 'CONTAINS',
   ) {
     if (relationships.length === 0) return;
@@ -58,7 +58,7 @@ export class Neo4jComponentPath {
       const index = chunks[0].findIndex((e) => e.elementId === lastContainEdge.elementId);
       // The last CONTAIN edge in the chain exists only once, so we are not going down.
       // Push an empty array.
-      if (index === chunks[0].length - 1 && selectedNode?.data.properties.layer === 'Domain') {
+      if (index === chunks[0].length - 1 && selectedDomain) {
         chunks.push([]);
       } else if (index === chunks[0].length - 1) {
         chunks.unshift([]);
@@ -83,11 +83,11 @@ export class Neo4jComponentPath {
     this.containTargetEdges = chunks[chunks.length - 1];
   }
 
-  constructor(record: Record<INeo4jComponentPath>, nodes: MapSet<Node>, selectedNode?: Node) {
+  constructor(record: Record<INeo4jComponentPath>, nodes: MapSet<Node>, selectedDomain: boolean) {
     this.source = record.get('source');
     this.target = record.get('target');
 
-    this.groupAndSet(record.get('path'), nodes, selectedNode);
+    this.groupAndSet(record.get('path'), nodes, selectedDomain);
 
     const finalSourceModuleId = this
       .containSourceEdges[this.containSourceEdges.length - 1]?.endNodeElementId

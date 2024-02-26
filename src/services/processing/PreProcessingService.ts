@@ -17,16 +17,22 @@ export default class PreProcessingService {
    * @param selectedId ID of the selected node (to highlight it)
    * @param context Optional graph that can provide more context to the given records,
    * i.e. when nodes or edges are missing from the given records.
+   * @param selectedDomain Whether the starting point of the selection is one or more domains.
+   * Overridden by selectedId, if it exists.
    */
   constructor(
     records: Record<INeo4jComponentPath>[],
     public readonly selectedId?: string,
     public readonly context?: IntermediateGraph,
+    selectedDomain: boolean = true,
   ) {
     this.nodes = this.getAllNodes(records, selectedId);
     this.selectedNode = this.nodes.get(selectedId);
 
-    const chunkRecords = this.splitRelationshipsIntoChunks(records);
+    const chunkRecords = this.splitRelationshipsIntoChunks(
+      records,
+      this.selectedNode ? this.selectedNode.data.properties.layer === 'Domain' : selectedDomain,
+    );
     this.records = this.onlyKeepLongestPaths(chunkRecords);
   }
 
@@ -52,13 +58,15 @@ export default class PreProcessingService {
    * Return the given records, but split/group the relationships into chunks of the same
    * type of relationship. See also this.groupRelationships().
    * @param records
+   * @param selectedDomain
    */
   private splitRelationshipsIntoChunks(
     records: Record<INeo4jComponentPath>[],
+    selectedDomain: boolean,
   ): Neo4jComponentPath[] {
     const contextNodes = this.context ? this.context.nodes.concat(this.nodes) : this.nodes;
     return records
-      .map((record) => (new Neo4jComponentPath(record, contextNodes, this.selectedNode)));
+      .map((record) => (new Neo4jComponentPath(record, contextNodes, selectedDomain)));
   }
 
   /**
