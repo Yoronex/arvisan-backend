@@ -54,10 +54,10 @@ export class Neo4jComponentPath {
     if (chunks.length === 1 && chunks[0][0]?.type.toUpperCase() === containEdgeName) {
       const lastContainEdge = chunks[0][chunks[0].length - 1];
       const index = chunks[0].findIndex((e) => e.elementId === lastContainEdge.elementId);
-      // The last CONTAIN edge in the chain exists only once, so we are not going back up.
+      // The last CONTAIN edge in the chain exists only once, so we are not going down.
       // Push an empty array.
       if (index === chunks[0].length - 1) {
-        chunks.push([]);
+        chunks.unshift([]);
       } else {
         const dependencyParents = chunks[0].splice(index + 1, chunks[0].length - 1 - index);
         chunks.push(dependencyParents);
