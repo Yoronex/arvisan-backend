@@ -4,7 +4,7 @@ import { EdgeData } from '../../entities/Edge';
 import { Neo4jComponentRelationship } from '../../entities';
 import { Graph, IntermediateGraph } from '../../entities/Graph';
 
-export default class GraphElementParserService {
+export default class ElementParserService {
   /**
    * Given a Neo4j node, format it to a CytoScape NodeData object
    * @param node

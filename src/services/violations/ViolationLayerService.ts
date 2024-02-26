@@ -3,7 +3,7 @@ import {
   Neo4jComponentPath, Node, Neo4jComponentRelationship,
 } from '../../entities';
 import { LayerViolation, LayerViolationSpec } from '../../entities/violations/LayerViolation';
-import GraphElementParserService from '../processing/GraphElementParserService';
+import ElementParserService from '../processing/ElementParserService';
 import { Neo4jClient } from '../../database/Neo4jClient';
 import { INeo4jComponentNode } from '../../database/entities';
 
@@ -94,9 +94,9 @@ export class ViolationLayerService {
     return this.violatingRelationships
       .filter((r) => r.violations.subLayer)
       .map((r): LayerViolation => ({
-        ...GraphElementParserService.toEdgeData(r),
+        ...ElementParserService.toEdgeData(r),
         actualEdges: [{
-          ...GraphElementParserService.toEdgeData(r.originalRelationship),
+          ...ElementParserService.toEdgeData(r.originalRelationship),
           sourceNode: r.originalStartNode.data,
           targetNode: r.originalEndNode.data,
         }],

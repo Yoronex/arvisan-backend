@@ -1,11 +1,11 @@
 import { Record } from 'neo4j-driver';
 import { INeo4jComponentPath } from '../../database/entities';
 import { IntermediateGraph, Neo4jComponentPath, Node } from '../../entities';
-import GraphElementParserService from './GraphElementParserService';
+import ElementParserService from './ElementParserService';
 
 import { MapSet } from '../../entities/MapSet';
 
-export default class GraphPreProcessingService {
+export default class PreProcessingService {
   public readonly nodes: MapSet<Node>;
 
   public readonly selectedNode?: Node;
@@ -42,7 +42,7 @@ export default class GraphPreProcessingService {
         const nodeId = field.elementId;
         if (nodeSet.has(nodeId)) return;
         nodeSet.set(nodeId, {
-          data: GraphElementParserService.toNodeData(field, selectedId),
+          data: ElementParserService.toNodeData(field, selectedId),
         });
       }));
     return nodeSet;

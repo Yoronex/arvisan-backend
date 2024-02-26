@@ -1,9 +1,9 @@
 import { Record } from 'neo4j-driver';
 import { Neo4jClient } from '../database/Neo4jClient';
-import GraphProcessingService from './processing/GraphProcessingService';
+import ProcessingService from './processing/ProcessingService';
 import { INeo4jComponentPath } from '../database/entities';
 import { Domain } from '../entities';
-import GraphPreProcessingService from './processing/GraphPreProcessingService';
+import PreProcessingService from './processing/PreProcessingService';
 
 export interface GraphLayer {
   label: string;
@@ -16,7 +16,7 @@ export interface Neo4jLayerRecord {
   to: string[],
 }
 
-export default class GraphPropertiesService {
+export default class PropertiesService {
   private readonly client: Neo4jClient;
 
   constructor() {
@@ -24,8 +24,8 @@ export default class GraphPropertiesService {
   }
 
   private formatDomains(records: Record<INeo4jComponentPath>[]): Domain[] {
-    const preprocessor = new GraphPreProcessingService(records, undefined);
-    const { nodes, edges } = new GraphProcessingService(preprocessor).formatToLPG('All domains', {
+    const preprocessor = new PreProcessingService(records, undefined);
+    const { nodes, edges } = new ProcessingService(preprocessor).formatToLPG('All domains', {
       maxDepth: 0,
       selfEdges: true,
     });

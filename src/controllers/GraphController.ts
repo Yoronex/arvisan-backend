@@ -2,9 +2,9 @@ import {
   Body, Controller, Post, Route, Tags, Response, Res,
 } from 'tsoa';
 import { TsoaResponse } from '@tsoa/runtime';
-import GraphVisualizationService, { QueryOptions } from '../services/GraphVisualizationService';
+import VisualizationService, { QueryOptions } from '../services/VisualizationService';
 import { GraphWithViolations } from '../entities/Graph';
-import GraphElementParserService from '../services/processing/GraphElementParserService';
+import ElementParserService from '../services/processing/ElementParserService';
 
 interface ErrorResponse {
   message: string;
@@ -23,9 +23,9 @@ export class GraphController extends Controller {
       const {
         violations,
         graph,
-      } = await new GraphVisualizationService().getGraphFromSelectedNode(params);
+      } = await new VisualizationService().getGraphFromSelectedNode(params);
       return {
-        graph: GraphElementParserService.toGraph(graph),
+        graph: ElementParserService.toGraph(graph),
         violations,
       };
     } catch (e: any) {

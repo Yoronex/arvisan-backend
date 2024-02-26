@@ -1,7 +1,7 @@
 import { IntermediateGraph, Edge, Node } from '../../entities';
 import { MapSet } from '../../entities/MapSet';
 
-export default class GraphPostProcessingService {
+export default class PostProcessingService {
   private readonly _graph: IntermediateGraph;
 
   constructor(...graphs: IntermediateGraph[]) {

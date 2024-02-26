@@ -1,13 +1,13 @@
 import { Record } from 'neo4j-driver';
 import { Neo4jClient } from '../database/Neo4jClient';
 import { IntermediateGraph, Neo4jComponentPath } from '../entities';
-import GraphProcessingService, { GraphFilterOptions, Range } from './processing/GraphProcessingService';
+import ProcessingService, { GraphFilterOptions, Range } from './processing/ProcessingService';
 import { INeo4jComponentPath } from '../database/entities';
-import GraphPostProcessingService from './processing/GraphPostProcessingService';
+import PostProcessingService from './processing/PostProcessingService';
 import ViolationCyclicalDependenciesService from './violations/ViolationCyclicalDependenciesService';
 import Violations from '../entities/violations';
 import { IntermediateGraphWithViolations } from '../entities/Graph';
-import GraphPreProcessingService from './processing/GraphPreProcessingService';
+import PreProcessingService from './processing/PreProcessingService';
 import { ViolationLayerService } from './violations';
 import { ViolationBaseService } from './violations/ViolationBaseService';
 
@@ -24,7 +24,7 @@ export interface QueryOptions {
   selfEdges?: boolean,
 }
 
-export default class GraphVisualizationService {
+export default class VisualizationService {
   private readonly client: Neo4jClient;
 
   constructor() {
@@ -36,8 +36,8 @@ export default class GraphVisualizationService {
       MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')<-[r:CONTAINS*0..5]-(selectedParent) 
       RETURN selectedNode as source, r as path, selectedParent as target`;
     const records = await this.client.executeQuery<INeo4jComponentPath>(query);
-    const preprocessor = new GraphPreProcessingService(records, id);
-    return new GraphProcessingService(preprocessor).formatToLPG('All parents');
+    const preprocessor = new PreProcessingService(records, id);
+    return new ProcessingService(preprocessor).formatToLPG('All parents');
   }
 
   private async getChildren(id: string, depth: number) {
@@ -45,8 +45,8 @@ export default class GraphVisualizationService {
       MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')-[r:CONTAINS*0..${depth}]->(moduleOrLayer) 
       RETURN selectedNode as source, r as path, moduleOrLayer as target`;
     const records = await this.client.executeQuery<INeo4jComponentPath>(query);
-    const preprocessor = new GraphPreProcessingService(records, id);
-    return new GraphProcessingService(preprocessor).formatToLPG('All sublayers and modules');
+    const preprocessor = new PreProcessingService(records, id);
+    return new ProcessingService(preprocessor).formatToLPG('All sublayers and modules');
   }
 
   private async processGraphAndGetViolations(
@@ -60,8 +60,8 @@ export default class GraphVisualizationService {
       outgoingRange, incomingRange, selfEdges,
     } = options;
 
-    const preprocessor = new GraphPreProcessingService(neo4jRecords, selectedId, treeGraph);
-    const processor = new GraphProcessingService(preprocessor);
+    const preprocessor = new PreProcessingService(neo4jRecords, selectedId, treeGraph);
+    const processor = new ProcessingService(preprocessor);
 
     if (treeGraph) {
       const containRelationships = preprocessor.records
@@ -174,7 +174,7 @@ export default class GraphVisualizationService {
       this.getParents(id),
       this.getChildren(id, layerDepth),
     ]);
-    const { graph: treeGraph } = new GraphPostProcessingService(...graphs);
+    const { graph: treeGraph } = new PostProcessingService(...graphs);
 
     const neo4jRecords: Record<INeo4jComponentPath>[] = [];
 
@@ -198,7 +198,7 @@ export default class GraphVisualizationService {
       outgoingRange,
     }, treeGraph);
 
-    const { graph } = new GraphPostProcessingService(treeGraph, dependencyGraph);
+    const { graph } = new PostProcessingService(treeGraph, dependencyGraph);
 
     await this.client.destroy();
 

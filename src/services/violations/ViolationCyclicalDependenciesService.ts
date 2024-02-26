@@ -5,7 +5,7 @@ import { INeo4jComponentRelationship, INeo4jComponentNode } from '../../database
 import { ExtendedEdgeData } from '../../entities/Edge';
 import { DependencyCycleRender } from '../../entities/violations/DependencyCycle';
 import { Graph, IntermediateGraph } from '../../entities';
-import GraphElementParserService from '../processing/GraphElementParserService';
+import ElementParserService from '../processing/ElementParserService';
 import { ViolationBaseService } from './ViolationBaseService';
 
 interface Neo4jDependencyPath {
@@ -33,11 +33,11 @@ export default class ViolationCyclicalDependenciesService {
     return records.map((r): DependencyCycle => {
       const { start, segments } = r.get('path');
       return {
-        node: GraphElementParserService.toNodeData(start),
+        node: ElementParserService.toNodeData(start),
         path: segments.map((s): ExtendedEdgeData => ({
-          ...GraphElementParserService.toEdgeData(s.relationship),
-          sourceNode: GraphElementParserService.toNodeData(s.start),
-          targetNode: GraphElementParserService.toNodeData(s.end),
+          ...ElementParserService.toEdgeData(s.relationship),
+          sourceNode: ElementParserService.toNodeData(s.start),
+          targetNode: ElementParserService.toNodeData(s.end),
         })),
         length: segments.length,
       };

@@ -2,8 +2,8 @@ import {
   Edge, Graph, IntermediateGraph, Neo4jComponentPath, Node,
 } from '../../entities';
 import { INeo4jComponentRelationship } from '../../database/entities';
-import GraphElementParserService from './GraphElementParserService';
-import GraphPreProcessingService from './GraphPreProcessingService';
+import ElementParserService from './ElementParserService';
+import PreProcessingService from './PreProcessingService';
 import { Neo4jDependencyType } from '../../entities/Neo4jComponentPath';
 
 import { MapSet } from '../../entities/MapSet';
@@ -33,11 +33,11 @@ export interface GraphFilterOptions extends BasicGraphFilterOptions {
   incomingRange?: Partial<Range>;
 }
 
-export default class GraphProcessingService {
-  public readonly original: GraphPreProcessingService;
+export default class ProcessingService {
+  public readonly original: PreProcessingService;
 
   constructor(
-    preprocessor: GraphPreProcessingService,
+    preprocessor: PreProcessingService,
     public readonly contextGraph: Graph = { edges: [], nodes: [], name: 'undefined' },
   ) {
     this.original = preprocessor;
@@ -87,7 +87,7 @@ export default class GraphProcessingService {
       const edgeId = r.elementId;
       if (edges.has(edgeId)) return;
       edges.set(edgeId, {
-        data: GraphElementParserService.toEdgeData(r),
+        data: ElementParserService.toEdgeData(r),
       });
     }));
     return edges;
