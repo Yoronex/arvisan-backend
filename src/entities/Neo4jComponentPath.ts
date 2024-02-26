@@ -6,8 +6,8 @@ import { Node } from './Node';
 
 export enum Neo4jDependencyType {
   NONE,
-  DEPENDENCY,
-  DEPENDENT,
+  OUTGOING,
+  INCOMING,
 }
 
 export class Neo4jComponentPath {
@@ -90,11 +90,11 @@ export class Neo4jComponentPath {
       ?? this.source.elementId;
 
     if (this.dependencyEdges[0]?.startNodeElementId === finalSourceModuleId) {
-      this.type = Neo4jDependencyType.DEPENDENCY;
+      this.type = Neo4jDependencyType.OUTGOING;
     } else if (this.dependencyEdges.length === 0) {
       this.type = Neo4jDependencyType.NONE;
     } else {
-      this.type = Neo4jDependencyType.DEPENDENT;
+      this.type = Neo4jDependencyType.INCOMING;
     }
   }
 
@@ -116,7 +116,7 @@ export class Neo4jComponentPath {
    * can also be a higher-layer element.
    */
   public get selectedModuleElementId(): string {
-    if (this.type === Neo4jDependencyType.DEPENDENT) {
+    if (this.type === Neo4jDependencyType.INCOMING) {
       return this.dependencyEdges.flat()[0]?.endNodeElementId
         ?? (this.containSourceEdges[this.containSourceEdges.length - 1]?.endNodeElementId)
         ?? (this.containTargetEdges[this.containTargetEdges.length - 1]?.startNodeElementId);

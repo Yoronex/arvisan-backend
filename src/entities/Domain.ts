@@ -1,7 +1,7 @@
 import { NodeData } from './Node';
 
 export interface Domain extends NodeData {
-  nrDependencies: number;
-  nrDependents: number;
+  nrOutgoingDependencies: number;
+  nrIncomingDependencies: number;
   nrInternalDependencies: number;
 }

@@ -25,12 +25,12 @@ export interface BasicGraphFilterOptions {
 }
 
 /**
- * @property dependencyRange - How many outgoing arrows a node is allowed to have
- * @property dependentRange - How many incoming arrows a node is allowed to have
+ * @property outgoingRange - How many outgoing arrows a node is allowed to have
+ * @property incomingRange - How many incoming arrows a node is allowed to have
  */
 export interface GraphFilterOptions extends BasicGraphFilterOptions {
-  dependencyRange?: Partial<Range>;
-  dependentRange?: Partial<Range>;
+  outgoingRange?: Partial<Range>;
+  incomingRange?: Partial<Range>;
 }
 
 export default class GraphProcessingService {
@@ -150,7 +150,7 @@ export default class GraphProcessingService {
 
       // eslint-disable-next-line prefer-destructuring
       const edge = record.dependencyEdges.flat()[0]; // Last element of first chunk
-      const isDependency = record.type === Neo4jDependencyType.DEPENDENCY;
+      const isDependency = record.type === Neo4jDependencyType.OUTGOING;
       let node: string;
       let relatedNode: string;
       if ((outgoing && isDependency) || (!outgoing && !isDependency)) {

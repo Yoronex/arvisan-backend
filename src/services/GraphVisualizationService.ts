@@ -6,7 +6,7 @@ import { INeo4jComponentPath } from '../database/entities';
 import GraphPostProcessingService from './processing/GraphPostProcessingService';
 import ViolationCyclicalDependenciesService from './violations/ViolationCyclicalDependenciesService';
 import Violations from '../entities/violations';
-import { GraphWithViolations, IntermediateGraphWithViolations } from '../entities/Graph';
+import { IntermediateGraphWithViolations } from '../entities/Graph';
 import GraphPreProcessingService from './processing/GraphPreProcessingService';
 import { ViolationLayerService } from './violations';
 import { ViolationBaseService } from './violations/ViolationBaseService';
@@ -17,10 +17,10 @@ export interface QueryOptions {
   dependencyDepth: number,
   onlyInternalRelations?: boolean,
   onlyExternalRelations?: boolean,
-  showDependencies?: boolean,
-  showDependents?: boolean,
-  dependencyRange?: Partial<Range>,
-  dependentRange?: Partial<Range>,
+  showOutgoing?: boolean,
+  showIncoming?: boolean,
+  outgoingRange?: Partial<Range>,
+  incomingRange?: Partial<Range>,
   selfEdges?: boolean,
 }
 
@@ -57,7 +57,7 @@ export default class GraphVisualizationService {
   ): Promise<IntermediateGraphWithViolations> {
     const {
       maxDepth,
-      dependencyRange, dependentRange, selfEdges,
+      outgoingRange, incomingRange, selfEdges,
     } = options;
 
     const preprocessor = new GraphPreProcessingService(neo4jRecords, selectedId, treeGraph);
@@ -90,9 +90,9 @@ export default class GraphVisualizationService {
 
     // Count how many relationships each child of the selected node has
     records = processor
-      .applyMinMaxRelationshipsFilter(records, true, dependencyRange?.min, dependencyRange?.max);
+      .applyMinMaxRelationshipsFilter(records, true, outgoingRange?.min, outgoingRange?.max);
     records = processor
-      .applyMinMaxRelationshipsFilter(records, false, dependentRange?.min, dependentRange?.max);
+      .applyMinMaxRelationshipsFilter(records, false, incomingRange?.min, incomingRange?.max);
 
     const edges = processor.mergeDuplicateEdges(processor.getAllEdges(records));
 
@@ -147,11 +147,11 @@ export default class GraphVisualizationService {
 
   public async getGraphFromSelectedNode({
     id, layerDepth, dependencyDepth, onlyExternalRelations, onlyInternalRelations,
-    showDependencies, showDependents, dependencyRange, dependentRange, selfEdges,
+    showOutgoing, showIncoming, outgoingRange, incomingRange, selfEdges,
   }: QueryOptions): Promise<IntermediateGraphWithViolations> {
-    const buildQuery = (dependencies: boolean = true) => {
+    const buildQuery = (outgoing: boolean = true) => {
       let query = `
-            MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')-[r1:CONTAINS*0..5]->(moduleOrLayer)${!dependencies ? '<' : ''}-[r2*0..${dependencyDepth}]-${dependencies ? '>' : ''}(dependency:Module) // Get all modules that belong to the selected node
+            MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')-[r1:CONTAINS*0..5]->(moduleOrLayer)${!outgoing ? '<' : ''}-[r2*0..${dependencyDepth}]-${outgoing ? '>' : ''}(dependency:Module) // Get all modules that belong to the selected node
             MATCH (selectedNode)<-[:CONTAINS*0..5]-(selectedDomain:Domain)                                   // Get the domain of the selected node
             MATCH (dependency)<-[r3:CONTAINS*0..5]-(parent)                                                  // Get the layers, application and domain of all dependencies
             WHERE true `;
@@ -162,7 +162,7 @@ export default class GraphVisualizationService {
         query += 'AND NOT (selectedDomain:Domain)-[:CONTAINS*]->(dependency) '; // Dependency should not be in the same domain
       }
 
-      if (dependencies) {
+      if (outgoing) {
         query += 'RETURN DISTINCT selectedNode as source, r1 + r2 + reverse(r3) as path, parent as target';
       } else {
         query += 'RETURN DISTINCT parent as source, r1 + r2 + reverse(r3) as path, selectedNode as target';
@@ -178,12 +178,12 @@ export default class GraphVisualizationService {
 
     const neo4jRecords: Record<INeo4jComponentPath>[] = [];
 
-    if (showDependencies) {
+    if (showOutgoing) {
       const records = await this.client
         .executeQuery<INeo4jComponentPath>(buildQuery(true));
       neo4jRecords.push(...records);
     }
-    if (showDependents) {
+    if (showIncoming) {
       const records = await this.client
         .executeQuery<INeo4jComponentPath>(buildQuery(false));
       neo4jRecords.push(...records);
@@ -194,8 +194,8 @@ export default class GraphVisualizationService {
     } = await this.processGraphAndGetViolations(neo4jRecords, id, {
       maxDepth: layerDepth,
       selfEdges,
-      dependentRange,
-      dependencyRange,
+      incomingRange,
+      outgoingRange,
     }, treeGraph);
 
     const { graph } = new GraphPostProcessingService(treeGraph, dependencyGraph);

@@ -32,10 +32,10 @@ export default class GraphPropertiesService {
 
     return nodes.map((node): Domain => ({
       ...node.data,
-      nrDependencies: edges
+      nrOutgoingDependencies: edges
         .filter((e) => e.data.source === node.data.id && e.data.target !== node.data.id)
         .reduce((total, e) => total + e.data.properties.weight, 0),
-      nrDependents: edges
+      nrIncomingDependencies: edges
         .filter((e) => e.data.source !== node.data.id && e.data.target === node.data.id)
         .reduce((total, e) => total + e.data.properties.weight, 0),
       nrInternalDependencies: edges
