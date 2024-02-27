@@ -7,6 +7,7 @@ import PreProcessingService from './PreProcessingService';
 import { Neo4jDependencyType } from '../../entities/Neo4jComponentPath';
 
 import { MapSet } from '../../entities/MapSet';
+import { filterDuplicates } from '../../helpers/array';
 
 export interface Range {
   min: number;
@@ -103,7 +104,19 @@ export default class ProcessingService {
       const existingEdge = newEdges.find((e) => e.data.source === edge.data.source
         && e.data.target === edge.data.target);
       if (!existingEdge) return newEdges.add(edge);
+
       existingEdge.data.properties.weight += edge.data.properties.weight;
+
+      existingEdge.data.properties.dependencyTypes = [
+        ...existingEdge.data.properties.dependencyTypes, ...edge.data.properties.dependencyTypes,
+      ].filter(filterDuplicates);
+      existingEdge.data.properties.referenceKeys = [
+        ...existingEdge.data.properties.referenceKeys, ...edge.data.properties.referenceKeys,
+      ].filter(filterDuplicates);
+      existingEdge.data.properties.referenceTypes = [
+        ...existingEdge.data.properties.referenceTypes, ...edge.data.properties.referenceTypes,
+      ].filter(filterDuplicates);
+
       return newEdges;
     }, new MapSet<Edge>());
   }
@@ -192,7 +205,7 @@ export default class ProcessingService {
       // Flatten the 2D array
       .flat()
       // Remove duplicates
-      .filter((n1, i, all) => i === all.findIndex((n2) => n1 === n2));
+      .filter(filterDuplicates);
     // Filter the actual node objects
     return nodes.filterByKeys(nodesOnPaths);
   }

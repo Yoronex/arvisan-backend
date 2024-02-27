@@ -40,10 +40,14 @@ export default class ElementParserService {
       target: edge.endNodeElementId,
       interaction: edge.type.toLowerCase(),
       properties: {
+        referenceKeys: [edge.properties.id.split('__')[0]],
         weight: 1,
         violations: {
           subLayer: 'violations' in edge ? edge.violations.subLayer : false,
         },
+        referenceTypes: [edge.properties.referenceType],
+        dependencyTypes: edge.properties.dependencyType
+          ? [edge.properties.dependencyType] : [],
       },
     };
   }

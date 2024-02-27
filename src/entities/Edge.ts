@@ -1,4 +1,5 @@
 import { NodeData } from './Node';
+import { DependencyType } from '../database/entities';
 
 export interface Edge {
   data: EdgeData,
@@ -19,10 +20,16 @@ export interface EdgeData {
   interaction: string,
   /** Custom properties */
   properties: {
+    /** Edge reference key (from OutSystems) */
+    referenceKeys: string[]
     /** Edge weight */
     weight: number,
     /** Whether this edge is some architectural violation */
     violations: EdgeViolations,
+    /** Type of reference used within OutSystems */
+    referenceTypes: string[],
+    /** Type of dependency */
+    dependencyTypes: DependencyType[],
   },
 }
 

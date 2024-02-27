@@ -2,7 +2,7 @@ import { Record } from 'neo4j-driver';
 import { Neo4jClient } from '../database/Neo4jClient';
 import { IntermediateGraph, Neo4jComponentPath } from '../entities';
 import ProcessingService, { GraphFilterOptions, Range } from './processing/ProcessingService';
-import { INeo4jComponentPath } from '../database/entities';
+import { DependencyType, INeo4jComponentPath } from '../database/entities';
 import PostProcessingService from './processing/PostProcessingService';
 import ViolationCyclicalDependenciesService from './violations/ViolationCyclicalDependenciesService';
 import Violations from '../entities/violations';
@@ -23,6 +23,9 @@ export interface QueryOptions {
   outgoingRange?: Partial<Range>,
   incomingRange?: Partial<Range>,
   selfEdges?: boolean,
+  showWeakDependencies?: boolean;
+  showStrongDependencies?: boolean;
+  showEntityDependencies?: boolean;
 }
 
 export default class VisualizationService {
@@ -150,7 +153,52 @@ export default class VisualizationService {
     id, layerDepth, dependencyDepth,
     showExternalRelations, showDomainInternalRelations, showSelectedInternalRelations,
     showOutgoing, showIncoming, outgoingRange, incomingRange, selfEdges,
+    showWeakDependencies, showStrongDependencies, showEntityDependencies,
   }: QueryOptions): Promise<IntermediateGraphWithViolations> {
+    const addParentsFilter = (query: string) => {
+      let q = `${query}`;
+
+      q += 'AND (false ';
+
+      if (showSelectedInternalRelations && !showDomainInternalRelations) {
+        q += 'OR (selectedNode)-[:CONTAINS*]->(dependency) ';
+      }
+      if (showDomainInternalRelations) {
+        q += 'OR (selectedDomain:Domain)-[:CONTAINS*]->(dependency) '; // Dependency should be in the same domain
+      }
+      if (showExternalRelations) {
+        q += 'OR NOT (selectedDomain:Domain)-[:CONTAINS*]->(dependency) '; // Dependency should not be in the same domain
+      }
+
+      q += ') ';
+
+      return q;
+    };
+
+    const addDependencyTypeFilter = (query: string) => {
+      const showAllDependencies = !!showWeakDependencies
+        && !!showStrongDependencies && !!showEntityDependencies;
+
+      if (showAllDependencies) return query;
+      let q = `${query}`;
+
+      q += 'AND (false ';
+
+      if (!showAllDependencies && showWeakDependencies) {
+        q += `OR all(rel in r2 WHERE rel.dependencyType = '${DependencyType.WEAK}') `;
+      }
+      if (!showAllDependencies && showStrongDependencies) {
+        q += `OR all(rel in r2 WHERE rel.dependencyType = '${DependencyType.STRONG}') `;
+      }
+      if (!showAllDependencies && showEntityDependencies) {
+        q += `OR all(rel in r2 WHERE rel.dependencyType = '${DependencyType.ENTITY}') `;
+      }
+
+      q += ') ';
+
+      return q;
+    };
+
     const buildQuery = (outgoing: boolean = true) => {
       let query = `
             // Get all modules that belong to the selected node
@@ -159,16 +207,10 @@ export default class VisualizationService {
             MATCH (selectedNode)<-[:CONTAINS*0..5]-(selectedDomain:Domain)
             // Get the layers, application and domain of all dependencies
             MATCH (dependency)<-[r3:CONTAINS*0..5]-(parent)
-            WHERE false `;
-      if (showSelectedInternalRelations && !showDomainInternalRelations) {
-        query += 'OR (selectedNode)-[:CONTAINS*]->(dependency) ';
-      }
-      if (showDomainInternalRelations) {
-        query += 'OR (selectedDomain:Domain)-[:CONTAINS*]->(dependency) '; // Dependency should be in the same domain
-      }
-      if (showExternalRelations) {
-        query += 'OR NOT (selectedDomain:Domain)-[:CONTAINS*]->(dependency) '; // Dependency should not be in the same domain
-      }
+            WHERE true `;
+
+      query = addParentsFilter(query);
+      query = addDependencyTypeFilter(query);
 
       if (outgoing) {
         query += 'RETURN DISTINCT selectedNode as source, r1 + r2 + reverse(r3) as path, parent as target';

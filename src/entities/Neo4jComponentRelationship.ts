@@ -1,5 +1,5 @@
 import { Integer } from 'neo4j-driver';
-import { INeo4jComponentRelationship } from '../database/entities';
+import { INeo4jComponentRelationship, INeo4jRelationshipProperties } from '../database/entities';
 import { Node } from './Node';
 import { EdgeViolations } from './Edge';
 import { MapSet } from './MapSet';
@@ -13,7 +13,7 @@ export class Neo4jComponentRelationship implements INeo4jComponentRelationship {
 
   type: string;
 
-  properties: { id: string };
+  properties: INeo4jRelationshipProperties;
 
   violations: EdgeViolations = {
     subLayer: false,
