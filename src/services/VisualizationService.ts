@@ -135,7 +135,7 @@ export default class VisualizationService {
 
     const cyclicalDependencies = await violationService.getDependencyCycles();
     const formattedCyclDeps = violationService
-      .extractAndAbstractDependencyCycles(cyclicalDependencies, graph, replaceMap);
+      .extractAndAbstractDependencyCycles(cyclicalDependencies, records, graph, replaceMap);
 
     const layerViolationService = new ViolationLayerService(this.client);
     await layerViolationService.markAndStoreLayerViolations(records);

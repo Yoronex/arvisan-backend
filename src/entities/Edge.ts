@@ -7,6 +7,7 @@ export interface Edge {
 
 export interface EdgeViolations {
   subLayer: boolean;
+  dependencyCycle: boolean;
 }
 
 export interface EdgeData {
@@ -25,7 +26,7 @@ export interface EdgeData {
     /** Edge weight */
     weight: number,
     /** Whether this edge is some architectural violation */
-    violations: EdgeViolations,
+    violations: EdgeViolations & { any: boolean },
     /** Type of reference used within OutSystems */
     referenceTypes: string[],
     /** Type of dependency */

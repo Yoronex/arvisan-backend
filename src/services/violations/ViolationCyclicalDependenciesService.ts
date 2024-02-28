@@ -4,7 +4,7 @@ import { DependencyCycle } from '../../entities/violations';
 import { INeo4jComponentRelationship, INeo4jComponentNode } from '../../database/entities';
 import { ExtendedEdgeData } from '../../entities/Edge';
 import { DependencyCycleRender } from '../../entities/violations/DependencyCycle';
-import { Graph, IntermediateGraph } from '../../entities';
+import { IntermediateGraph, Neo4jComponentPath } from '../../entities';
 import ElementParserService from '../processing/ElementParserService';
 import { ViolationBaseService } from './ViolationBaseService';
 
@@ -62,49 +62,73 @@ export default class ViolationCyclicalDependenciesService {
    * Given a list of (indirect) dependency cycles, perform the same abstraction as is
    * performed on the graph. Then, remove all cycles that are not in the graph.
    * @param dependencyCycles
+   * @param records
    * @param graph
    * @param replaceMaps
    */
   public extractAndAbstractDependencyCycles(
     dependencyCycles: DependencyCycle[],
+    records: Neo4jComponentPath[],
     graph: IntermediateGraph,
     replaceMaps: Map<string, string>,
   ): DependencyCycleRender[] {
     const cycleIndex = (d1: DependencyCycle) => `${d1.node.id}--${d1.path.map((p) => p.id).join('-')}`;
+    const existingEdges = records.map((r) => r.dependencyEdges).flat();
 
     return dependencyCycles.map((dep) => {
       const newDep: DependencyCycleRender = { ...dep, actualCycles: [dep], id: cycleIndex(dep) };
+      const newPath = dep.path.map((d): ExtendedEdgeData => {
+        const existingEdge = existingEdges
+          .find((r) => r.originalStartNode.data.id === d.source
+            && r.originalEndNode.data.id === d.target);
 
-      const replaceId = replaceMaps.get(dep.node.id);
-      const replaceNode = graph.nodes.find((n) => n.data.id === replaceId);
-      if (replaceNode) {
-        newDep.node = replaceNode.data;
-      }
+        // Edge exists within the rendered graph
+        if (existingEdge) {
+          existingEdge.violations.dependencyCycle = true;
+          return {
+            ...d,
+            source: existingEdge.startNodeElementId,
+            sourceNode: existingEdge.startNode?.data ?? existingEdge.originalStartNode.data,
+            target: existingEdge.endNodeElementId,
+            targetNode: existingEdge.endNode?.data ?? existingEdge.originalEndNode.data,
+          };
+        }
 
-      newDep.path = newDep.path.map((e) => {
-        const newEdge: ExtendedEdgeData = { ...e };
-        const replaceSource = replaceMaps.get(e.source);
-        const replaceSourceNode = graph.nodes.get(replaceSource || '');
-        const replaceTarget = replaceMaps.get(e.target);
-        const replaceTargetNode = graph.nodes.get(replaceTarget || '');
-        if (replaceSource && replaceSourceNode) {
-          newEdge.source = replaceSource;
-          newEdge.sourceNode = replaceSourceNode.data;
+        // Edge not found, so we have to find the source and target nodes
+        // manually (if they even exist)
+        const newD = { ...d };
+
+        const newSourceId = replaceMaps.get(d.source);
+        const sourceNode = graph.nodes.find((n) => n.data.id === newSourceId);
+        if (sourceNode) {
+          newD.source = sourceNode.data.id;
+          newD.sourceNode = sourceNode.data;
         }
-        if (replaceTarget && replaceTargetNode) {
-          newEdge.target = replaceTarget;
-          newEdge.targetNode = replaceTargetNode.data;
+        const newTargetId = replaceMaps.get(d.target);
+        const targetNode = graph.nodes.find((n) => n.data.id === newTargetId);
+        if (targetNode) {
+          newD.target = targetNode.data.id;
+          newD.targetNode = targetNode.data;
         }
-        return newEdge;
-      }).map((d) => ViolationBaseService.replaceWithCorrectEdgeIds(d, graph))
-        .filter((e, index) => {
-          if (index === 0) return true;
+        return newD;
+      });
+
+      newDep.path = newPath
+        .map((d) => ViolationBaseService.replaceWithCorrectEdgeIds(d, graph))
+        // Keep at most only one self edge if the cyclical dependency is fully contained.
+        // If not, remove any self edges from the chain
+        .filter((e, index, all) => {
+          if (index === 0 && all.every((e2) => e2.source === e2.target)) return true;
           return e.source !== e.target;
         });
+      newDep.node = newPath[0].sourceNode;
 
       return newDep;
+      // Keep only dependency cycles that have their source node in the current graph
     }).filter((d) => !!graph.nodes.find((n) => n.data.id === d.node.id))
+      // Generate a new ID for each dependency cycle
       .map((d): DependencyCycleRender => ({ ...d, id: cycleIndex(d) }))
+      // Merge all dependency cycles with the same ID
       .reduce((violations: DependencyCycleRender[], d) => {
         const index = violations.findIndex((d1) => d1.id === d.id);
         if (index >= 0) {

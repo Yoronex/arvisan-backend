@@ -44,6 +44,8 @@ export default class ElementParserService {
         weight: 1,
         violations: {
           subLayer: 'violations' in edge ? edge.violations.subLayer : false,
+          dependencyCycle: 'violations' in edge ? edge.violations.dependencyCycle : false,
+          any: 'violations' in edge ? edge.violations.subLayer || edge.violations.dependencyCycle : false,
         },
         referenceTypes: [edge.properties.referenceType],
         dependencyTypes: edge.properties.dependencyType

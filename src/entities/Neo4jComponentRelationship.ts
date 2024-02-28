@@ -17,6 +17,7 @@ export class Neo4jComponentRelationship implements INeo4jComponentRelationship {
 
   violations: EdgeViolations = {
     subLayer: false,
+    dependencyCycle: false,
   };
 
   identity: Integer;
