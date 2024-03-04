@@ -1,0 +1,55 @@
+version: '3'
+services:
+  frontend:
+    build: ../arvisan-frontend
+    image: yoronex/arvisan-frontend:latest
+    restart: 'unless-stopped'
+    ports:
+      - 5173:80
+    networks:
+      - arvisan
+  backend:
+    build: .
+    image: yoronex/arvisan-backend:latest
+    restart: 'unless-stopped'
+    networks:
+      - arvisan
+    environment:
+      - NEO4J_URL=bolt://neo4j:7687 # Use bolt://host.docker.internal:7687 when using local neo4j instance
+      - NEO4J_USERNAME=neo4j
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+      - NEO4J_QUERY_TIMEOUT=10000
+      - HTTP_BASIC_AUTH_USERNAME=developer
+      - HTTP_BASIC_AUTH_PASSWORD=password
+      - HTTP_FRONTEND_URL=http://localhost:5173
+  # Optional neo4j database instance. You can also use an instance installed on the host machine
+  neo4j:
+    image: neo4j:latest
+    restart: 'unless-stopped'
+    networks:
+      - arvisan
+    ports:
+      - 7474:7474
+      - 7687:7687
+    environment:
+      - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD}
+      - NEO4J_apoc_export_file_enabled=true
+      - NEO4J_apoc_import_file_enabled=true
+      - NEO4J_apoc_import_file_use__neo4j__config=true
+      - NEO4J_PLUGINS=["apoc"]
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+      - neo4j_plugins:/plugins
+
+volumes:
+  neo4j_data:
+    driver: local
+  neo4j_logs:
+    driver: local
+  neo4j_plugins:
+    driver: local
+
+networks:
+  arvisan:
+    driver: bridge

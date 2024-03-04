@@ -48,6 +48,11 @@ During development and testing, data has been imported using a custom parser.
 Due to security and intellectual property considerations, this repository shall not be published. 
 
 ## How to install
+To get started quickly, use docker-compose in this repository.
+This stack contains the backend, frontend, and an empty Neo4j database instance.
+The Neo4j database within the Docker stack can also be replaced by a local Neo4j instance (for example Neo4j Desktop).
+
+To install the backend manually:
 - Install NodeJS 20 and pnpm.
 - Install Neo4j and create a database with a corresponding user. Don't forget to install APOC as well.
 - Copy .env-example to .env. Add the Neo4j user credentials (username and password) to the Neo4j environment variables.

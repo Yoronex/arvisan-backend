@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "tsoa spec-and-routes && tsc",
+    "build": "tsoa spec-and-routes && tsc && node dist/src/version.js --save",
     "start": "node build/src/server.js",
     "dev": "concurrently \"nodemon\" \"nodemon -x tsoa spec-and-routes\"",
     "lint": "eslint . --ext .ts",
