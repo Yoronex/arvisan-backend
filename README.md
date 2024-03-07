@@ -53,10 +53,10 @@ This stack contains the backend, frontend, and an empty Neo4j database instance.
 The Neo4j database within the Docker stack can also be replaced by a local Neo4j instance (for example Neo4j Desktop).
 
 To install the backend manually:
-- Install NodeJS 20 and pnpm.
+- Install NodeJS 20 and npm.
 - Install Neo4j and create a database with a corresponding user. Don't forget to install APOC as well.
 - Copy .env-example to .env. Add the Neo4j user credentials (username and password) to the Neo4j environment variables.
 Also choose a username and password, which is used to authenticate with this backend.
-- Install all dependencies: `pnpm install`.
+- Install all dependencies: `npm install`.
 - Start the application: `npm run dev`.
 - The backend is now accessible on http://localhost:3000. The API documentation can be viewed at http://localhost:3000/api-docs
