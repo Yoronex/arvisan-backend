@@ -67,16 +67,18 @@ export default async function createHttp() {
   ): ExResponse | void => {
     if (err instanceof ValidateError) {
       console.warn(`Caught Validation Error for ${req.path}:`, err.fields);
-      return res.status(422).json({
+      res.status(422).json({
         message: 'Validation Failed',
         details: err?.fields,
       });
+      return;
     }
     if (err instanceof Error) {
       console.error(err);
-      return res.status(500).json({
+      res.status(500).json({
         message: 'Internal Server Error',
       });
+      return;
     }
 
     next();

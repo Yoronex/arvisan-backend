@@ -10,8 +10,9 @@ export type INeo4jComponentNode = Neo4jNode<Integer, {
   color: string;
   depth: number;
   id: string;
-  kind: string;
+  layerName: string;
   simpleName: string;
+  fullName: string;
 }>;
 
 export type INeo4jRelationshipProperties = {

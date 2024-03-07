@@ -11,7 +11,9 @@ export class Neo4jClient {
   public async executeQuery<T extends RecordShape>(
     query: string,
   ): Promise<Array<Record<T>>> {
-    const session = this.driver.session();
+    const session = this.driver.session({
+      database: process.env.NEO4J_DATABASE,
+    });
     const result = await session.executeRead(
       (tx) => tx.run(query),
       { timeout: 5000 },

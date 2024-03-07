@@ -71,9 +71,20 @@ export default class PropertiesService {
       return layer;
     };
 
+    const extractLayer = (labels: string[]): [string, string[]] => {
+      const labelIndex = labels.findIndex((l) => !l.includes('_'));
+      const label = labels[labelIndex];
+
+      const classes = [...labels];
+      classes.splice(labelIndex, 1);
+      const classNames = classes.map((c) => c.split('_')[1]);
+
+      return [label, classNames];
+    };
+
     records.forEach((r) => {
-      const [fromLabel, ...fromClasses] = r.get('from')[0].split('_');
-      const [toLabel, ...toClasses] = r.get('to')[0].split('_');
+      const [fromLabel, fromClasses] = extractLayer(r.get('from'));
+      const [toLabel, toClasses] = extractLayer(r.get('to'));
       const fromLayer = findOrCreateLayer(fromLabel);
       const toLayer = findOrCreateLayer(toLabel);
 

@@ -18,8 +18,9 @@ export default class ElementParserService {
       id: node.elementId,
       label: node.properties.simpleName,
       properties: {
-        kind: node.properties.kind,
-        layer: node.labels[0] || '',
+        fullName: node.properties.fullName,
+        kind: node.properties.layerName,
+        layer: node.labels.sort((a, b) => a.length - b.length)[0],
         color: node.properties.color,
         depth: Number(node.properties.depth),
         selected: node.elementId === selectedId ? 'true' : 'false',
