@@ -20,7 +20,7 @@ export default class ElementParserService {
       properties: {
         fullName: node.properties.fullName,
         kind: node.properties.layerName,
-        layer: node.labels.sort((a, b) => a.length - b.length)[0],
+        layer: node.labels.sort((a, b) => b.length - a.length)[0],
         color: node.properties.color,
         depth: Number(node.properties.depth),
         selected: node.elementId === selectedId ? 'true' : 'false',
