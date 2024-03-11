@@ -100,7 +100,7 @@ export default class ProcessingService {
    * @param edges
    */
   mergeDuplicateEdges(edges: MapSet<Edge>): MapSet<Edge> {
-    return edges.reduce((newEdges: MapSet<Edge>, edge) => {
+    const newEdges2 = edges.reduce((newEdges: MapSet<Edge>, edge) => {
       const existingEdge = newEdges.find((e) => e.data.source === edge.data.source
         && e.data.target === edge.data.target);
       if (!existingEdge) return newEdges.add(edge);
@@ -111,21 +111,27 @@ export default class ProcessingService {
       existingEdge.data.properties.nrFunctionDependencies += edge
         .data.properties.nrFunctionDependencies;
 
-      existingEdge.data.properties.dependencyTypes = [
-        ...existingEdge.data.properties.dependencyTypes, ...edge.data.properties.dependencyTypes,
-      ].filter(filterDuplicates);
-      existingEdge.data.properties.referenceKeys = [
-        ...existingEdge.data.properties.referenceKeys, ...edge.data.properties.referenceKeys,
-      ].filter(filterDuplicates);
-      existingEdge.data.properties.referenceTypes = [
-        ...existingEdge.data.properties.referenceTypes, ...edge.data.properties.referenceTypes,
-      ].filter(filterDuplicates);
-      existingEdge.data.properties.referenceNames = [
-        ...existingEdge.data.properties.referenceNames, ...edge.data.properties.referenceNames,
-      ].filter(filterDuplicates);
+      existingEdge.data.properties.dependencyTypes = existingEdge.data.properties.dependencyTypes
+        .concat(...edge.data.properties.dependencyTypes);
+      existingEdge.data.properties.referenceKeys = existingEdge.data.properties.referenceKeys
+        .concat(...edge.data.properties.referenceKeys);
+      existingEdge.data.properties.referenceTypes = existingEdge.data.properties.referenceTypes
+        .concat(edge.data.properties.referenceTypes);
+      existingEdge.data.properties.referenceNames = existingEdge.data.properties.referenceNames
+        .concat(...edge.data.properties.referenceNames);
 
       return newEdges;
     }, new MapSet<Edge>());
+
+    newEdges2.forEach((e) => {
+      e.data.properties.dependencyTypes = e.data.properties.dependencyTypes
+        .filter(filterDuplicates);
+      e.data.properties.referenceKeys = e.data.properties.referenceKeys.filter(filterDuplicates);
+      e.data.properties.referenceTypes = e.data.properties.referenceTypes.filter(filterDuplicates);
+      e.data.properties.referenceNames = e.data.properties.referenceNames.filter(filterDuplicates);
+    });
+
+    return newEdges2;
   }
 
   /**

@@ -48,7 +48,7 @@ export default class ElementParserService {
           any: 'violations' in edge ? edge.violations.subLayer || edge.violations.dependencyCycle : false,
         },
         referenceTypes: [edge.properties.referenceType],
-        referenceNames: edge.properties.referenceNames.split('|'),
+        referenceNames: edge.properties.referenceNames?.split('|') ?? [],
         dependencyTypes: edge.properties.dependencyType
           ? [edge.properties.dependencyType] : [],
         nrModuleDependencies: 1,

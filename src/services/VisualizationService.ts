@@ -202,11 +202,11 @@ export default class VisualizationService {
     const buildQuery = (outgoing: boolean = true) => {
       let query = `
             // Get all modules that belong to the selected node
-            MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')-[r1:CONTAINS*0..5]->(moduleOrLayer)${!outgoing ? '<' : ''}-[r2*0..${dependencyDepth}]-${outgoing ? '>' : ''}(dependency:Module)
+            MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')-[r1:CONTAINS*0..4]->(moduleOrLayer)${!outgoing ? '<' : ''}-[r2*0..${dependencyDepth}]-${outgoing ? '>' : ''}(dependency:Module)
             // Get the domain of the selected node
-            MATCH (selectedNode)<-[:CONTAINS*0..5]-(selectedDomain:Domain)
+            MATCH (selectedNode)<-[:CONTAINS*0..4]-(selectedDomain:Domain)
             // Get the layers, application and domain of all dependencies
-            MATCH (dependency)<-[r3:CONTAINS*0..5]-(parent)
+            MATCH (dependency)<-[r3:CONTAINS*0..4]-(parent)
             WHERE true `;
 
       query = addParentsFilter(query);

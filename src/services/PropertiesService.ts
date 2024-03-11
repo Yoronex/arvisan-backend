@@ -49,8 +49,8 @@ export default class PropertiesService {
    */
   async getDomains() {
     const query = `
-            MATCH (selectedNode:Domain)-[r1:CONTAINS*0..5]->(moduleOrLayer)-[r2*1..1]->(dependency:Module)   // Get all modules that belong to the selected node
-            MATCH (dependency)<-[r3:CONTAINS*0..5]-(parent)                                                  // Get the layers, application and domain of all dependencies
+            MATCH (selectedNode:Domain)-[r1:CONTAINS*0..4]->(moduleOrLayer)-[r2]->(dependency:Module)   // Get all modules that belong to the selected node
+            MATCH (dependency)<-[r3:CONTAINS*0..4]-(parent)                                                  // Get the layers, application and domain of all dependencies
             RETURN DISTINCT selectedNode as source, r1 + r2 + reverse(r3) as path, parent as target `;
     const records = await this.client
       .executeQuery<INeo4jComponentPath>(query);
