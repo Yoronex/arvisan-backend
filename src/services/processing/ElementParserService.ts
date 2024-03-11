@@ -41,16 +41,20 @@ export default class ElementParserService {
       target: edge.endNodeElementId,
       interaction: edge.type.toLowerCase(),
       properties: {
-        referenceKeys: [edge.properties.id.split('__')[0]],
-        weight: 1,
+        referenceKeys: [],
         violations: {
           subLayer: 'violations' in edge ? edge.violations.subLayer : false,
           dependencyCycle: 'violations' in edge ? edge.violations.dependencyCycle : false,
           any: 'violations' in edge ? edge.violations.subLayer || edge.violations.dependencyCycle : false,
         },
         referenceTypes: [edge.properties.referenceType],
+        referenceNames: edge.properties.referenceNames.split('|'),
         dependencyTypes: edge.properties.dependencyType
           ? [edge.properties.dependencyType] : [],
+        nrModuleDependencies: 1,
+        nrFunctionDependencies: Number(edge.properties.nrDependencies) || 1,
+        weight: Number(edge.properties.nrDependencies) || 1,
+        nrCalls: Number(edge.properties.nrCalls) || undefined,
       },
     };
   }

@@ -16,9 +16,11 @@ export type INeo4jComponentNode = Neo4jNode<Integer, {
 }>;
 
 export type INeo4jRelationshipProperties = {
-  id: string;
   referenceType: string;
   dependencyType?: DependencyType;
+  referenceNames: string;
+  nrDependencies?: number;
+  nrCalls?: number;
 };
 
 export type INeo4jComponentRelationship = Neo4jRelationship<Integer, INeo4jRelationshipProperties>;

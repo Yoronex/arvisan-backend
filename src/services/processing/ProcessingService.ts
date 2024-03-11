@@ -106,6 +106,10 @@ export default class ProcessingService {
       if (!existingEdge) return newEdges.add(edge);
 
       existingEdge.data.properties.weight += edge.data.properties.weight;
+      existingEdge.data.properties.nrModuleDependencies += edge
+        .data.properties.nrModuleDependencies;
+      existingEdge.data.properties.nrFunctionDependencies += edge
+        .data.properties.nrFunctionDependencies;
 
       existingEdge.data.properties.dependencyTypes = [
         ...existingEdge.data.properties.dependencyTypes, ...edge.data.properties.dependencyTypes,
@@ -115,6 +119,9 @@ export default class ProcessingService {
       ].filter(filterDuplicates);
       existingEdge.data.properties.referenceTypes = [
         ...existingEdge.data.properties.referenceTypes, ...edge.data.properties.referenceTypes,
+      ].filter(filterDuplicates);
+      existingEdge.data.properties.referenceNames = [
+        ...existingEdge.data.properties.referenceNames, ...edge.data.properties.referenceNames,
       ].filter(filterDuplicates);
 
       return newEdges;

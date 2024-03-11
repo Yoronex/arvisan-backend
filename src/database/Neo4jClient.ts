@@ -16,7 +16,7 @@ export class Neo4jClient {
     });
     const result = await session.executeRead(
       (tx) => tx.run(query),
-      { timeout: 5000 },
+      { timeout: Number(process.env.NEO4J_QUERY_TIMEOUT) || 5000 },
     );
     await session.close();
 
