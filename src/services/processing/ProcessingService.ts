@@ -159,7 +159,7 @@ export default class ProcessingService {
     // Count how many relationships each child of the selected node has
     const relationsMap = new Map<string, string[]>();
     records.forEach((record) => {
-      if (!minRelationships && !maxRelationships) return;
+      if (minRelationships == null && maxRelationships == null) return;
 
       // eslint-disable-next-line prefer-destructuring
       const edge = record.dependencyEdges.flat()[0]; // Last element of first chunk
@@ -184,13 +184,13 @@ export default class ProcessingService {
 
     // Apply filter
     return records.filter((record) => {
-      if (!minRelationships && !maxRelationships) return true;
+      if (minRelationships == null && maxRelationships == null) return true;
 
       const node = record.selectedModuleElementId;
 
       const uniqueRelationships = relationsMap.get(node) || [];
-      if (minRelationships && uniqueRelationships.length < minRelationships) return false;
-      if (maxRelationships && uniqueRelationships.length > maxRelationships) return false;
+      if (minRelationships != null && uniqueRelationships.length < minRelationships) return false;
+      if (maxRelationships != null && uniqueRelationships.length > maxRelationships) return false;
       return true;
     });
   }
