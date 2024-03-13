@@ -6,6 +6,39 @@ import { Graph, IntermediateGraph } from '../../entities/Graph';
 
 export default class ElementParserService {
   /**
+   * Get the longest label (which is probably the one you want)
+   * @param labels
+   */
+  public static getLongestLabel(labels: string[]): string {
+    return labels.sort((a, b) => b.length - a.length)[0];
+  }
+
+  /**
+   * Get the longest label (which is probably the one you want)
+   * @param labels
+   */
+  public static getShortestLabel(labels: string[]): string {
+    return labels.sort((a, b) => a.length - b.length)[0];
+  }
+
+  /**
+   * Given a list of labels, parse it to its core "label" and a list
+   * of possible classes within that layer
+   * @param labels
+   * @returns tuple with [label, classes]
+   */
+  public static extractLayer(labels: string[]): [string, string[]] {
+    const labelIndex = labels.findIndex((l) => !l.includes('_'));
+    const label = labels[labelIndex];
+
+    const classes = [...labels];
+    classes.splice(labelIndex, 1);
+    const classNames = classes.map((c) => c.split('_')[1]);
+
+    return [label, classNames];
+  }
+
+  /**
    * Given a Neo4j node, format it to a CytoScape NodeData object
    * @param node
    * @param selectedId
@@ -20,7 +53,7 @@ export default class ElementParserService {
       properties: {
         fullName: node.properties.fullName,
         kind: node.properties.layerName,
-        layer: node.labels.sort((a, b) => b.length - a.length)[0],
+        layer: this.getLongestLabel(node.labels),
         color: node.properties.color,
         depth: Number(node.properties.depth),
         selected: node.elementId === selectedId ? 'true' : 'false',

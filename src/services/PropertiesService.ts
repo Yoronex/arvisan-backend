@@ -4,6 +4,7 @@ import ProcessingService from './processing/ProcessingService';
 import { INeo4jComponentPath } from '../database/entities';
 import { Domain } from '../entities';
 import PreProcessingService from './processing/PreProcessingService';
+import ElementParserService from './processing/ElementParserService';
 
 export interface GraphLayer {
   label: string;
@@ -71,20 +72,9 @@ export default class PropertiesService {
       return layer;
     };
 
-    const extractLayer = (labels: string[]): [string, string[]] => {
-      const labelIndex = labels.findIndex((l) => !l.includes('_'));
-      const label = labels[labelIndex];
-
-      const classes = [...labels];
-      classes.splice(labelIndex, 1);
-      const classNames = classes.map((c) => c.split('_')[1]);
-
-      return [label, classNames];
-    };
-
     records.forEach((r) => {
-      const [fromLabel, fromClasses] = extractLayer(r.get('from'));
-      const [toLabel, toClasses] = extractLayer(r.get('to'));
+      const [fromLabel, fromClasses] = ElementParserService.extractLayer(r.get('from'));
+      const [toLabel, toClasses] = ElementParserService.extractLayer(r.get('to'));
       const fromLayer = findOrCreateLayer(fromLabel);
       const toLayer = findOrCreateLayer(toLabel);
 
