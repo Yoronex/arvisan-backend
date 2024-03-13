@@ -1,14 +1,11 @@
-export interface BreadcrumbOption {
+import { NodeData } from './Node';
+
+export interface BreadcrumbItem {
   name: string;
   layerLabel: string;
   id: string;
 }
 
-export interface BreadcrumbLayer {
-  layerLabel: string;
-  id: string;
-}
-
-export interface Breadcrumb extends BreadcrumbLayer {
-  options: BreadcrumbOption[];
+export interface Breadcrumb extends BreadcrumbItem {
+  options: NodeData[];
 }

@@ -10,8 +10,9 @@ import { IntermediateGraphWithViolations } from '../entities/Graph';
 import PreProcessingService from './processing/PreProcessingService';
 import { ViolationLayerService } from './violations';
 import { ViolationBaseService } from './violations/ViolationBaseService';
-import { Breadcrumb, BreadcrumbLayer, BreadcrumbOption } from '../entities/Breadcrumb';
+import { Breadcrumb, BreadcrumbItem } from '../entities/Breadcrumb';
 import ElementParserService from './processing/ElementParserService';
+import { NodeData } from '../entities/Node';
 
 export interface QueryOptions {
   id: string;
@@ -268,17 +269,18 @@ export default class VisualizationService {
   public async getBreadcrumbsOptionsFromSelectedNode(id: string): Promise<Breadcrumb[]> {
     const records = await this.client
       .executeQuery<{ parent: INeo4jComponentNode, option: INeo4jComponentNode }>(`
-        MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')<-[r1:CONTAINS*1..4]-(parent)-[r2:CONTAINS]->(option)
+        MATCH (parent)-[:CONTAINS*1..4]->(selectedNode WHERE elementId(selectedNode) = '${id}')
+        MATCH (parent)-[:CONTAINS]->(option)
         RETURN parent, option
       `);
 
-    const breadcrumbParents = records.reduce((parents: BreadcrumbLayer[], record) => {
+    const breadcrumbParents = records.reduce((parents: BreadcrumbItem[], record) => {
       const parent = record.get('parent');
       if (parents.some((p) => p.id === parent.elementId)) {
         return parents;
       }
       const layerLabel = ElementParserService.getLongestLabel(parent.labels);
-      parents.push({ layerLabel, id: parent.elementId });
+      parents.push({ layerLabel, name: parent.properties.simpleName, id: parent.elementId });
       return parents;
     }, [])
       // Reverse the ordering, because now the lowest layer is the first element
@@ -287,10 +289,23 @@ export default class VisualizationService {
 
     const breadcrumbs: Breadcrumb[] = breadcrumbParents.map((p) => {
       const optionNodes = records.filter((r) => r.get('parent').elementId === p.id);
-      const options: BreadcrumbOption[] = optionNodes.map((n) => {
+      const options: NodeData[] = optionNodes.map((n) => {
         const option = n.get('option');
         const [layer] = ElementParserService.extractLayer(option.labels);
-        return { id: option.elementId, layerLabel: layer, name: option.properties.simpleName };
+        const nodeData = ElementParserService.toNodeData(option);
+        return {
+          ...nodeData,
+          properties: {
+            ...nodeData.properties,
+            // Override the layer, because ElementParserService.toNodeData
+            // always takes the longest label
+            layer,
+          },
+        };
+      }).sort((a, b) => {
+        if (a.label > b.label) return 1;
+        if (a.label < b.label) return -1;
+        return 0;
       });
       return { ...p, options };
     });
@@ -298,12 +313,12 @@ export default class VisualizationService {
     // The current label/id of the breadcrumbs are still the parents,
     // while they should be layer label and the current selected node ID of that layer.
     return breadcrumbs.map((breadcrumb, i, all): Breadcrumb => {
-      const { layerLabel } = breadcrumb.options[0];
-      // ID is the ID of this parent's child, or the selected node if it does not exist
       const elementId = all[i + 1]?.id ?? id;
+      const selectedOption = breadcrumb.options.find((o) => o.id === elementId)!;
       return {
-        layerLabel,
-        id: elementId,
+        layerLabel: selectedOption.properties.layer,
+        name: selectedOption.label,
+        id: selectedOption.id,
         options: breadcrumb.options,
       };
     });
