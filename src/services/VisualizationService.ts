@@ -2,7 +2,12 @@ import { Record } from 'neo4j-driver';
 import { Neo4jClient } from '../database/Neo4jClient';
 import { IntermediateGraph, Neo4jComponentPath } from '../entities';
 import ProcessingService, { GraphFilterOptions, Range } from './processing/ProcessingService';
-import { DependencyType, INeo4jComponentNode, INeo4jComponentPath } from '../database/entities';
+import {
+  DependencyType,
+  INeo4jComponentNode,
+  INeo4jComponentPath,
+  INeo4jComponentRelationship,
+} from '../database/entities';
 import PostProcessingService from './processing/PostProcessingService';
 import ViolationCyclicalDependenciesService from './violations/ViolationCyclicalDependenciesService';
 import Violations from '../entities/violations';
@@ -13,10 +18,18 @@ import { ViolationBaseService } from './violations/ViolationBaseService';
 import { Breadcrumb, BreadcrumbItem } from '../entities/Breadcrumb';
 import ElementParserService from './processing/ElementParserService';
 import { NodeData } from '../entities/Node';
+import { filterDuplicates } from '../helpers/array';
 
-export interface QueryOptions {
+export interface BaseQueryOptions {
   id: string;
+  /**
+   * @isInt
+   * @minimum 0
+   */
   layerDepth: number,
+}
+
+export interface QueryOptions extends BaseQueryOptions {
   dependencyDepth: number,
   showSelectedInternalRelations?: boolean,
   showDomainInternalRelations?: boolean,
@@ -259,68 +272,5 @@ export default class VisualizationService {
       graph,
       violations,
     };
-  }
-
-  /**
-   * Get a list of the breadcrumbs of the selected node, including a list of possible other children
-   * of the parent.
-   * @param id
-   */
-  public async getBreadcrumbsOptionsFromSelectedNode(id: string): Promise<Breadcrumb[]> {
-    const records = await this.client
-      .executeQuery<{ parent: INeo4jComponentNode, option: INeo4jComponentNode }>(`
-        MATCH (parent)-[:CONTAINS*1..4]->(selectedNode WHERE elementId(selectedNode) = '${id}')
-        MATCH (parent)-[:CONTAINS]->(option)
-        RETURN parent, option
-      `);
-
-    const breadcrumbParents = records.reduce((parents: BreadcrumbItem[], record) => {
-      const parent = record.get('parent');
-      if (parents.some((p) => p.id === parent.elementId)) {
-        return parents;
-      }
-      const layerLabel = ElementParserService.getLongestLabel(parent.labels);
-      parents.push({ layerLabel, name: parent.properties.simpleName, id: parent.elementId });
-      return parents;
-    }, [])
-      // Reverse the ordering, because now the lowest layer is the first element
-      // and the "Domain" layer is the last
-      .reverse();
-
-    const breadcrumbs: Breadcrumb[] = breadcrumbParents.map((p) => {
-      const optionNodes = records.filter((r) => r.get('parent').elementId === p.id);
-      const options: NodeData[] = optionNodes.map((n) => {
-        const option = n.get('option');
-        const [layer] = ElementParserService.extractLayer(option.labels);
-        const nodeData = ElementParserService.toNodeData(option);
-        return {
-          ...nodeData,
-          properties: {
-            ...nodeData.properties,
-            // Override the layer, because ElementParserService.toNodeData
-            // always takes the longest label
-            layer,
-          },
-        };
-      }).sort((a, b) => {
-        if (a.label > b.label) return 1;
-        if (a.label < b.label) return -1;
-        return 0;
-      });
-      return { ...p, options };
-    });
-
-    // The current label/id of the breadcrumbs are still the parents,
-    // while they should be layer label and the current selected node ID of that layer.
-    return breadcrumbs.map((breadcrumb, i, all): Breadcrumb => {
-      const elementId = all[i + 1]?.id ?? id;
-      const selectedOption = breadcrumb.options.find((o) => o.id === elementId)!;
-      return {
-        layerLabel: selectedOption.properties.layer,
-        name: selectedOption.label,
-        id: selectedOption.id,
-        options: breadcrumb.options,
-      };
-    });
   }
 }

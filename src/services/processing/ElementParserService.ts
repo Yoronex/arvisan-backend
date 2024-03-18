@@ -10,7 +10,7 @@ export default class ElementParserService {
    * @param labels
    */
   public static getLongestLabel(labels: string[]): string {
-    return labels.sort((a, b) => b.length - a.length)[0];
+    return labels.sort((a, b) => b.length - a.length)[0] ?? '???';
   }
 
   /**
@@ -18,7 +18,7 @@ export default class ElementParserService {
    * @param labels
    */
   public static getShortestLabel(labels: string[]): string {
-    return labels.sort((a, b) => a.length - b.length)[0];
+    return labels.sort((a, b) => a.length - b.length)[0] ?? '???';
   }
 
   /**
