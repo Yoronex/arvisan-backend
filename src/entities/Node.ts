@@ -1,3 +1,5 @@
+import { ModuleDependencyProfileCategory } from '../database/entities';
+
 export interface Node {
   data: NodeData,
 }
@@ -23,5 +25,7 @@ export interface NodeData {
     depth: number,
     /** Whether this node is selected or not */
     selected: 'true' | 'false',
+    /** The type of dependency profile this node is. Only for bottom-layer nodes */
+    dependencyProfileCategory?: ModuleDependencyProfileCategory;
   },
 }

@@ -57,6 +57,7 @@ export default class ElementParserService {
         color: node.properties.color,
         depth: Number(node.properties.depth),
         selected: node.elementId === selectedId ? 'true' : 'false',
+        dependencyProfileCategory: node.properties.dependencyProfileCategory,
       },
     };
   }
