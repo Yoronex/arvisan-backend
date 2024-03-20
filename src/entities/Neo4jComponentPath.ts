@@ -1,5 +1,9 @@
 import { Record } from 'neo4j-driver';
-import { INeo4jComponentRelationship, INeo4jComponentNode, INeo4jComponentPath } from '../database/entities';
+import {
+  INeo4jComponentRelationship,
+  INeo4jComponentNode,
+  INeo4jComponentPath,
+} from '../database/entities';
 import { Neo4jComponentRelationship } from './Neo4jComponentRelationship';
 import { MapSet } from './MapSet';
 import { Node } from './Node';
@@ -29,25 +33,28 @@ export class Neo4jComponentPath {
    * This is necessary to traverse up and down the "tree" of nodes.
    * If there are only "CONTAINS" relationships in the given list, the result will contain
    * two lists, one with relationships going "down" and the other going "up".
-   * @param relationships
+   * @param relationshipsToGroup
    * @param nodes
+   * @param allContainRelationships All existing (queried) containment relationships.
+   * Required to find context of each start and end node of dependency relationships.
    * @param selectedDomain
    * @param containEdgeName
    * @private
    */
   private groupAndSet(
-    relationships: INeo4jComponentRelationship[],
+    relationshipsToGroup: INeo4jComponentRelationship[],
     nodes: MapSet<Node>,
+    allContainRelationships: INeo4jComponentRelationship[],
     selectedDomain: boolean,
     containEdgeName = 'CONTAINS',
   ) {
-    if (relationships.length === 0) return;
-    const chunks = [[relationships[0]]];
-    for (let i = 1; i < relationships.length; i += 1) {
-      if (relationships[i].type === chunks[chunks.length - 1][0].type) {
-        chunks[chunks.length - 1].push(relationships[i]);
+    if (relationshipsToGroup.length === 0) return;
+    const chunks = [[relationshipsToGroup[0]]];
+    for (let i = 1; i < relationshipsToGroup.length; i += 1) {
+      if (relationshipsToGroup[i].type === chunks[chunks.length - 1][0].type) {
+        chunks[chunks.length - 1].push(relationshipsToGroup[i]);
       } else {
-        chunks.push([relationships[i]]);
+        chunks.push([relationshipsToGroup[i]]);
       }
     }
 
@@ -78,16 +85,25 @@ export class Neo4jComponentPath {
 
     // eslint-disable-next-line prefer-destructuring
     this.containSourceEdges = chunks[0];
-    this.dependencyEdges = chunks.slice(1, chunks.length - 1).flat()
-      .map((dep) => new Neo4jComponentRelationship(dep, nodes));
     this.containTargetEdges = chunks[chunks.length - 1];
+    this.dependencyEdges = chunks.slice(1, chunks.length - 1).flat()
+      .map((dep) => new Neo4jComponentRelationship(
+        dep,
+        nodes,
+        allContainRelationships,
+      ));
   }
 
-  constructor(record: Record<INeo4jComponentPath>, nodes: MapSet<Node>, selectedDomain: boolean) {
+  constructor(
+    record: Record<INeo4jComponentPath>,
+    nodes: MapSet<Node>,
+    allContainRelationships: INeo4jComponentRelationship[],
+    selectedDomain: boolean,
+  ) {
     this.source = record.get('source');
     this.target = record.get('target');
 
-    this.groupAndSet(record.get('path'), nodes, selectedDomain);
+    this.groupAndSet(record.get('path'), nodes, allContainRelationships, selectedDomain);
 
     const finalSourceModuleId = this
       .containSourceEdges[this.containSourceEdges.length - 1]?.endNodeElementId

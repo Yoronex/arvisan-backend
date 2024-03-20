@@ -65,8 +65,16 @@ export default class PreProcessingService {
     selectedDomain: boolean,
   ): Neo4jComponentPath[] {
     const contextNodes = this.context ? this.context.nodes.concat(this.nodes) : this.nodes;
-    return records
-      .map((record) => (new Neo4jComponentPath(record, contextNodes, selectedDomain)));
+    const allContainRelationships = records
+      .map((r) => r.get('path'))
+      .flat()
+      .filter((r) => r.type === 'CONTAINS');
+    return records.map((record) => (new Neo4jComponentPath(
+      record,
+      contextNodes,
+      allContainRelationships,
+      selectedDomain,
+    )));
   }
 
   /**

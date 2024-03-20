@@ -47,7 +47,11 @@ export class Neo4jComponentRelationship implements INeo4jComponentRelationship {
 
   endNodeParents: Node[] = [];
 
-  constructor(dep: INeo4jComponentRelationship, nodes: MapSet<Node>) {
+  constructor(
+    dep: INeo4jComponentRelationship,
+    nodes: MapSet<Node>,
+    containRelationships: INeo4jComponentRelationship[],
+  ) {
     this.elementId = dep.elementId;
     this.startNodeElementId = dep.startNodeElementId;
     this.endNodeElementId = dep.endNodeElementId;
@@ -63,6 +67,7 @@ export class Neo4jComponentRelationship implements INeo4jComponentRelationship {
       throw new Error(`Start node (ID ${this.startNodeElementId}) for edge ${this.elementId} not found!`);
     }
     this.startNode = startNode;
+    this.startNodeParents = this.getParents(startNode, [startNode], containRelationships, nodes);
     this.originalStartNode = startNode;
 
     const endNode = nodes.get(this.endNodeElementId);
@@ -70,6 +75,7 @@ export class Neo4jComponentRelationship implements INeo4jComponentRelationship {
       throw new Error(`End node (ID ${this.endNodeElementId}) for edge ${this.elementId} not found!`);
     }
     this.endNode = endNode;
+    this.endNodeParents = this.getParents(endNode, [endNode], containRelationships, nodes);
     this.originalEndNode = endNode;
   }
 
@@ -102,17 +108,6 @@ export class Neo4jComponentRelationship implements INeo4jComponentRelationship {
     }
     if (!parent) return parents;
     return this.getParents(parent, [...parents, parent], rels, nodes);
-  }
-
-  findAndSetParents(nodes: MapSet<Node>, containRelationships: INeo4jComponentRelationship[]) {
-    const startNode = nodes.get(this.startNodeElementId);
-    if (startNode) {
-      this.startNodeParents = this.getParents(startNode, [startNode], containRelationships, nodes);
-    }
-    const endNode = nodes.get(this.endNodeElementId);
-    if (endNode) {
-      this.endNodeParents = this.getParents(endNode, [endNode], containRelationships, nodes);
-    }
   }
 
   getLayerNode(parents: Node[], layerName: string) {

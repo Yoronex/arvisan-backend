@@ -4,9 +4,7 @@ import { IntermediateGraph, Neo4jComponentPath } from '../entities';
 import ProcessingService, { GraphFilterOptions, Range } from './processing/ProcessingService';
 import {
   DependencyType,
-  INeo4jComponentNode,
   INeo4jComponentPath,
-  INeo4jComponentRelationship,
 } from '../database/entities';
 import PostProcessingService from './processing/PostProcessingService';
 import ViolationCyclicalDependenciesService from './violations/ViolationCyclicalDependenciesService';
@@ -15,10 +13,6 @@ import { IntermediateGraphWithViolations } from '../entities/Graph';
 import PreProcessingService from './processing/PreProcessingService';
 import { ViolationLayerService } from './violations';
 import { ViolationBaseService } from './violations/ViolationBaseService';
-import { Breadcrumb, BreadcrumbItem } from '../entities/Breadcrumb';
-import ElementParserService from './processing/ElementParserService';
-import { NodeData } from '../entities/Node';
-import { filterDuplicates } from '../helpers/array';
 
 export interface BaseQueryOptions {
   id: string;
@@ -82,17 +76,6 @@ export default class VisualizationService {
 
     const preprocessor = new PreProcessingService(neo4jRecords, selectedId, treeGraph);
     const processor = new ProcessingService(preprocessor);
-
-    if (treeGraph) {
-      const containRelationships = preprocessor.records
-        .map((r) => [r.containSourceEdges, r.containTargetEdges])
-        .flat().flat();
-      preprocessor.records.forEach((r) => {
-        r.dependencyEdges.flat().forEach((dep) => {
-          dep.findAndSetParents(treeGraph.nodes.concat(preprocessor.nodes), containRelationships);
-        });
-      });
-    }
 
     // Find the nodes that need to be replaced (and with which nodes).
     // Also, already remove the too-deep nodes
