@@ -38,3 +38,8 @@ export interface INeo4jComponentPath {
   path: INeo4jComponentRelationship[];
   target: INeo4jComponentNode;
 }
+
+export interface Neo4jRelationshipMappings {
+  sourceToTargets: Map<string, string[]>;
+  targetToSource: Map<string, string>;
+}

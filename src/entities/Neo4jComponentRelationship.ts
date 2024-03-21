@@ -1,5 +1,9 @@
 import { Integer } from 'neo4j-driver';
-import { INeo4jComponentRelationship, INeo4jRelationshipProperties } from '../database/entities';
+import {
+  INeo4jComponentRelationship,
+  INeo4jRelationshipProperties,
+  Neo4jRelationshipMappings,
+} from '../database/entities';
 import { Node } from './Node';
 import { EdgeViolations } from './Edge';
 import { MapSet } from './MapSet';
@@ -50,7 +54,7 @@ export class Neo4jComponentRelationship implements INeo4jComponentRelationship {
   constructor(
     dep: INeo4jComponentRelationship,
     nodes: MapSet<Node>,
-    containRelationships: INeo4jComponentRelationship[],
+    containRelationships: Neo4jRelationshipMappings,
   ) {
     this.elementId = dep.elementId;
     this.startNodeElementId = dep.startNodeElementId;
@@ -96,15 +100,15 @@ export class Neo4jComponentRelationship implements INeo4jComponentRelationship {
   private getParents(
     currentNode: Node,
     parents: Node[],
-    rels: INeo4jComponentRelationship[],
+    rels: Neo4jRelationshipMappings,
     nodes: MapSet<Node>,
   ): Node[] {
     let parent: Node | undefined;
     if (currentNode.data.parent) {
       parent = nodes.get(currentNode.data.parent);
     } else {
-      const rel = rels.find((r) => r.endNodeElementId === currentNode.data.id);
-      if (rel) parent = nodes.get(rel.startNodeElementId);
+      const parentId = rels.targetToSource.get(currentNode.data.id);
+      if (parentId) parent = nodes.get(parentId);
     }
     if (!parent) return parents;
     return this.getParents(parent, [...parents, parent], rels, nodes);

@@ -1,8 +1,7 @@
 import { Record } from 'neo4j-driver';
-import { INeo4jComponentPath } from '../../database/entities';
+import { INeo4jComponentPath, Neo4jRelationshipMappings } from '../../database/entities';
 import { IntermediateGraph, Neo4jComponentPath, Node } from '../../entities';
 import ElementParserService from './ElementParserService';
-
 import { MapSet } from '../../entities/MapSet';
 
 export default class PreProcessingService {
@@ -65,10 +64,26 @@ export default class PreProcessingService {
     selectedDomain: boolean,
   ): Neo4jComponentPath[] {
     const contextNodes = this.context ? this.context.nodes.concat(this.nodes) : this.nodes;
-    const allContainRelationships = records
-      .map((r) => r.get('path'))
-      .flat()
-      .filter((r) => r.type === 'CONTAINS');
+    const allContainRelationships: Neo4jRelationshipMappings = {
+      sourceToTargets: new Map(),
+      targetToSource: new Map(),
+    };
+
+    // Create a mapping from source to targets and target to source to efficiently
+    // find a node's parents later
+    records.forEach((record) => record.get('path')
+      .forEach((rel) => {
+        if (rel.type !== 'CONTAINS') return;
+        allContainRelationships.targetToSource.set(rel.endNodeElementId, rel.startNodeElementId);
+        if (allContainRelationships.sourceToTargets.has(rel.startNodeElementId)) {
+          const targets = allContainRelationships.sourceToTargets.get(rel.startNodeElementId);
+          targets?.push(rel.endNodeElementId);
+        } else {
+          allContainRelationships.sourceToTargets
+            .set(rel.startNodeElementId, [rel.endNodeElementId]);
+        }
+      }));
+
     return records.map((record) => (new Neo4jComponentPath(
       record,
       contextNodes,

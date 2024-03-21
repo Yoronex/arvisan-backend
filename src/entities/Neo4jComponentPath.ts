@@ -2,7 +2,7 @@ import { Record } from 'neo4j-driver';
 import {
   INeo4jComponentRelationship,
   INeo4jComponentNode,
-  INeo4jComponentPath,
+  INeo4jComponentPath, Neo4jRelationshipMappings,
 } from '../database/entities';
 import { Neo4jComponentRelationship } from './Neo4jComponentRelationship';
 import { MapSet } from './MapSet';
@@ -44,7 +44,7 @@ export class Neo4jComponentPath {
   private groupAndSet(
     relationshipsToGroup: INeo4jComponentRelationship[],
     nodes: MapSet<Node>,
-    allContainRelationships: INeo4jComponentRelationship[],
+    allContainRelationships: Neo4jRelationshipMappings,
     selectedDomain: boolean,
     containEdgeName = 'CONTAINS',
   ) {
@@ -97,7 +97,7 @@ export class Neo4jComponentPath {
   constructor(
     record: Record<INeo4jComponentPath>,
     nodes: MapSet<Node>,
-    allContainRelationships: INeo4jComponentRelationship[],
+    allContainRelationships: Neo4jRelationshipMappings,
     selectedDomain: boolean,
   ) {
     this.source = record.get('source');
