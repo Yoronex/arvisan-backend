@@ -1,4 +1,8 @@
-import { INeo4jComponentRelationship, INeo4jComponentNode } from '../../database/entities';
+import {
+  INeo4jComponentRelationship,
+  INeo4jComponentNode,
+  ModuleDependencyProfileCategory,
+} from '../../database/entities';
 import { NodeData } from '../../entities/Node';
 import { EdgeData } from '../../entities/Edge';
 import { Neo4jComponentRelationship } from '../../entities';
@@ -38,6 +42,16 @@ export default class ElementParserService {
     return [label, classNames];
   }
 
+  private static toDependencyProfile(category?: ModuleDependencyProfileCategory) {
+    switch (category) {
+      case ModuleDependencyProfileCategory.HIDDEN: return [1, 0, 0, 0];
+      case ModuleDependencyProfileCategory.INBOUND: return [0, 1, 0, 0];
+      case ModuleDependencyProfileCategory.OUTBOUND: return [0, 0, 1, 0];
+      case ModuleDependencyProfileCategory.TRANSIT: return [0, 0, 0, 1];
+      default: return [0, 0, 0, 0];
+    }
+  }
+
   /**
    * Given a Neo4j node, format it to a CytoScape NodeData object
    * @param node
@@ -58,6 +72,7 @@ export default class ElementParserService {
         depth: Number(node.properties.depth),
         selected: node.elementId === selectedId ? 'true' : 'false',
         dependencyProfileCategory: node.properties.dependencyProfileCategory,
+        dependencyProfile: this.toDependencyProfile(node.properties.dependencyProfileCategory),
       },
     };
   }

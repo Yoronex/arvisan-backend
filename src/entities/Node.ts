@@ -25,7 +25,13 @@ export interface NodeData {
     depth: number,
     /** Whether this node is selected or not */
     selected: 'true' | 'false',
+
     /** The type of dependency profile this node is. Only for bottom-layer nodes */
     dependencyProfileCategory?: ModuleDependencyProfileCategory;
+    /**
+     * Dependency profile of the given node. Quadruple of four categories
+     * [hidden, inbound, outbound, transit] if internal (tree) node. Undefined if leaf node.
+     */
+    dependencyProfile: number[];
   },
 }
