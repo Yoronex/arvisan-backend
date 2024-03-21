@@ -79,18 +79,20 @@ export default class ViolationCyclicalDependenciesService {
       const newDep: DependencyCycleRender = { ...dep, actualCycles: [dep], id: cycleIndex(dep) };
       const newPath = dep.path.map((d): ExtendedEdgeData => {
         const existingEdge = existingEdges
-          .find((r) => r.originalStartNode.data.id === d.source
-            && r.originalEndNode.data.id === d.target);
+          .find((r) => r.originalStartNode.elementId === d.source
+            && r.originalEndNode.elementId === d.target);
 
         // Edge exists within the rendered graph
         if (existingEdge) {
           existingEdge.violations.dependencyCycle = true;
+          const sourceNode = ElementParserService.toNodeData(existingEdge.startNode);
+          const targetNode = ElementParserService.toNodeData(existingEdge.startNode);
           return {
             ...d,
             source: existingEdge.startNodeElementId,
-            sourceNode: existingEdge.startNode?.data ?? existingEdge.originalStartNode.data,
+            sourceNode,
             target: existingEdge.endNodeElementId,
-            targetNode: existingEdge.endNode?.data ?? existingEdge.originalEndNode.data,
+            targetNode,
           };
         }
 
@@ -99,16 +101,16 @@ export default class ViolationCyclicalDependenciesService {
         const newD = { ...d };
 
         const newSourceId = replaceMaps.get(d.source);
-        const sourceNode = graph.nodes.find((n) => n.data.id === newSourceId);
+        const sourceNode = graph.nodes.find((n) => n.elementId === newSourceId);
         if (sourceNode) {
-          newD.source = sourceNode.data.id;
-          newD.sourceNode = sourceNode.data;
+          newD.source = sourceNode.elementId;
+          newD.sourceNode = ElementParserService.toNodeData(sourceNode);
         }
         const newTargetId = replaceMaps.get(d.target);
-        const targetNode = graph.nodes.find((n) => n.data.id === newTargetId);
+        const targetNode = graph.nodes.find((n) => n.elementId === newTargetId);
         if (targetNode) {
-          newD.target = targetNode.data.id;
-          newD.targetNode = targetNode.data;
+          newD.target = targetNode.elementId;
+          newD.targetNode = ElementParserService.toNodeData(targetNode);
         }
         return newD;
       });
@@ -125,7 +127,7 @@ export default class ViolationCyclicalDependenciesService {
 
       return newDep;
       // Keep only dependency cycles that have their source node in the current graph
-    }).filter((d) => !!graph.nodes.find((n) => n.data.id === d.node.id))
+    }).filter((d) => !!graph.nodes.find((n) => n.elementId === d.node.id))
       // Generate a new ID for each dependency cycle
       .map((d): DependencyCycleRender => ({ ...d, id: cycleIndex(d) }))
       // Merge all dependency cycles with the same ID

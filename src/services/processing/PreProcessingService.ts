@@ -1,16 +1,14 @@
 import { Record } from 'neo4j-driver';
-import {
-  Edge, IntermediateGraph, Neo4jComponentPath, Node,
-} from '../../entities';
+import { IntermediateGraph, Neo4jComponentPath } from '../../entities';
 import { INeo4jComponentPath, Neo4jRelationshipMappings } from '../../database/entities';
-import ElementParserService from './ElementParserService';
 import { MapSet } from '../../entities/MapSet';
 import { filterDuplicates } from '../../helpers/array';
+import Neo4jComponentNode from '../../entities/Neo4jComponentNode';
 
 export default class PreProcessingService {
-  public readonly nodes: MapSet<Node>;
+  public readonly nodes: MapSet<Neo4jComponentNode>;
 
-  public readonly selectedNode?: Node;
+  public readonly selectedNode?: Neo4jComponentNode;
 
   public readonly records: Neo4jComponentPath[];
 
@@ -41,20 +39,21 @@ export default class PreProcessingService {
         allContainRelationships.targetToSource.set(rel.endNodeElementId, rel.startNodeElementId);
         if (allContainRelationships.sourceToTargets.has(rel.startNodeElementId)) {
           const targets = allContainRelationships.sourceToTargets.get(rel.startNodeElementId);
-          targets?.push(rel.endNodeElementId);
+          if (targets && !targets.includes(rel.endNodeElementId)) {
+            targets?.push(rel.endNodeElementId);
+          }
         } else {
           allContainRelationships.sourceToTargets
             .set(rel.startNodeElementId, [rel.endNodeElementId]);
         }
       }));
 
-    this.nodes = this.getAllNodes(records, allContainRelationships, selectedId);
+    this.nodes = this.getAllNodes(records, allContainRelationships);
     this.selectedNode = this.nodes.get(selectedId);
 
     const chunkRecords = this.splitRelationshipsIntoChunks(
       records,
-      allContainRelationships,
-      this.selectedNode ? this.selectedNode.data.properties.layer === 'Domain' : selectedDomain,
+      this.selectedNode ? this.selectedNode.layer === 'Domain' : selectedDomain,
     );
     this.records = this.onlyKeepLongestPaths(chunkRecords);
   }
@@ -68,110 +67,73 @@ export default class PreProcessingService {
   private getAllNodes(
     records: Record<INeo4jComponentPath>[],
     allContainRelationships: Neo4jRelationshipMappings,
-    selectedId?: string,
-  ): MapSet<Node> {
-    const nodeSet: MapSet<Node> = new MapSet();
+  ): MapSet<Neo4jComponentNode> {
+    const nodeSet: MapSet<Neo4jComponentNode> = new MapSet();
     records.forEach((r) => [r.get('source'), r.get('target')]
       .forEach((field) => {
         const nodeId = field.elementId;
         if (nodeSet.has(nodeId)) return;
-        nodeSet.set(nodeId, {
-          data: ElementParserService.toNodeData(field, selectedId),
-        });
+        nodeSet.set(nodeId, new Neo4jComponentNode(field));
       }));
-    const nodes = this.calculateDependencyProfile(nodeSet, allContainRelationships, records);
-    if (nodes.size !== nodeSet.size) {
-      throw new Error('Some nodes disappeared in calculcating dependency profiles');
-    }
-    return nodes;
+
+    nodeSet.forEach((n) => n.setParentChildNodes(nodeSet, allContainRelationships));
+
+    this.calculateDependencyProfile(nodeSet);
+    return nodeSet;
   }
 
   /**
    * Recursively calculate the dependency profiles for the given
    * nodes within the context of the graph
    * @param layerNodes Set of nodes that are in the same layer in the graph
-   * @param allNodes All nodes in the graph (to find the parents)
-   * @param containEdges All containment edges in the graph (to find the parents)
    * @private
    */
   private getDependencyProfile(
-    layerNodes: MapSet<Node>,
-    allNodes: MapSet<Node>,
-    allContainRelationships: Neo4jRelationshipMappings,
-  ): MapSet<Node> {
+    layerNodes: MapSet<Neo4jComponentNode>,
+  ): void {
     // const layerEdges = containEdges.filter((e) => layerNodes.has(e.data.target));
     // if (layerEdges.size === 0) return new MapSet<Node>();
     // const parents = allNodes.filter((n) => !!layerEdges.find((e) => e.data.source === n.data.id));
-    const parentIds = layerNodes.map((n) => allContainRelationships.targetToSource.get(n.data.id))
-      .filter((p) => p !== undefined)
+    const parentList = layerNodes.map((n) => n.parent)
+      .filter((p) => p != null)
       .map((p) => p!)
       .filter(filterDuplicates);
-    if (parentIds.length === 0) return new MapSet<Node>();
-
-    const parentList = parentIds.map((id) => allNodes.get(id)).map((p) => p!!);
+    if (parentList.length === 0) return;
     const parents = MapSet.from(...parentList);
 
-    return parents.reduce((newMap, p) => {
-      // const children = layerEdges
-      //   .filter((e) => e.data.source === p.data.id)
-      //   .map((e) => layerNodes.get((e.data.target))!);
-      const children: Node[] = (allContainRelationships.sourceToTargets.get(p.data.id) ?? [])
-        .map((childId) => allNodes.get(childId))
-        .filter((n) => n !== undefined)
-        .map((n) => n!);
-      const dependencyProfile = children.reduce((newProfile, child) => newProfile
-        .map((a, i) => child.data.properties.dependencyProfile[i]), [0, 0, 0, 0]);
-      newMap.set(p.data.id, {
-        data: {
-          ...p.data,
-          properties: {
-            ...p.data.properties,
-            dependencyProfile,
-          },
-        },
-      });
-      return newMap;
-    }, new MapSet<Node>())
-      .concat(this.getDependencyProfile(parents, allNodes, allContainRelationships));
+    parents.forEach((parent) => {
+      // eslint-disable-next-line no-param-reassign
+      parent.dependencyProfile = parent.children
+        .reduce((newProfile, child) => {
+          const childProfile = child.dependencyProfile;
+          const result = newProfile.map((x, i) => x + childProfile[i]);
+          return [result[0], result[1], result[2], result[3]];
+        }, [0, 0, 0, 0]);
+    });
+    this.getDependencyProfile(parents);
   }
 
   /**
    * Given a set of nodes, calculate the dependency profile for each node
    * @param nodes
-   * @param allContainRelationships
-   * @param records
    * @private
    */
   private calculateDependencyProfile(
-    nodes: MapSet<Node>,
-    allContainRelationships: Neo4jRelationshipMappings,
-    records: Record<INeo4jComponentPath>[],
-  ): MapSet<Node> {
-    const containSet: MapSet<Edge> = new MapSet();
-    records.forEach((r) => r.get('path')
-      .forEach((relationship) => {
-        const relationId = relationship.elementId;
-        if (relationship.type !== 'CONTAINS' || containSet.has(relationId)) return;
-        containSet.set(relationId, {
-          data: ElementParserService.toEdgeData(relationship),
-        });
-      }));
-
+    nodes: MapSet<Neo4jComponentNode>,
+  ): void {
     // Get all nodes that do not have any children
-    const leafNodes = nodes.filter((n) => !allContainRelationships.sourceToTargets.has(n.data.id));
-    return this.getDependencyProfile(leafNodes, nodes, allContainRelationships).concat(leafNodes);
+    const leafNodes = nodes.filter((n) => n.children.length === 0);
+    this.getDependencyProfile(leafNodes);
   }
 
   /**
    * Return the given records, but split/group the relationships into chunks of the same
    * type of relationship. See also this.groupRelationships().
    * @param records
-   * @param allContainRelationships
    * @param selectedDomain
    */
   private splitRelationshipsIntoChunks(
     records: Record<INeo4jComponentPath>[],
-    allContainRelationships: Neo4jRelationshipMappings,
     selectedDomain: boolean,
   ): Neo4jComponentPath[] {
     const contextNodes = this.context ? this.context.nodes.concat(this.nodes) : this.nodes;
@@ -179,7 +141,6 @@ export default class PreProcessingService {
     return records.map((record) => (new Neo4jComponentPath(
       record,
       contextNodes,
-      allContainRelationships,
       selectedDomain,
     )));
   }

@@ -15,8 +15,6 @@ export interface NodeData {
   properties: {
     /** Full name of the node (including prefixes) */
     fullName: string,
-    /** Type of node */
-    kind: string,
     /** Layer this node is in */
     layer: string,
     /** Hex color this node should be */

@@ -1,5 +1,6 @@
-import { IntermediateGraph, Edge, Node } from '../../entities';
+import { IntermediateGraph, Edge } from '../../entities';
 import { MapSet } from '../../entities/MapSet';
+import Neo4jComponentNode from '../../entities/Neo4jComponentNode';
 
 export default class PostProcessingService {
   private readonly _graph: IntermediateGraph;
@@ -28,7 +29,7 @@ export default class PostProcessingService {
     const edges = graphs.map((g) => g.edges).flat();
     const graph = {
       name: `Merged graph of '${graphs.map((g) => g.name).join(', ')}'`,
-      nodes: new MapSet<Node>(...nodes),
+      nodes: new MapSet<Neo4jComponentNode>(...nodes),
       edges: new MapSet<Edge>(...edges),
     };
     this.validateGraph(graph);

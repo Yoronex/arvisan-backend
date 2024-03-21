@@ -1,7 +1,9 @@
 import { Node } from './Node';
 import { Edge } from './Edge';
+import Neo4jComponentNode from './Neo4jComponentNode';
+import { Neo4jComponentRelationship } from './Neo4jComponentRelationship';
 
-export class MapSet<T extends Node | Edge> extends Map<string, T> {
+export class MapSet<T> extends Map<string, T> {
   constructor(...sets: MapSet<T>[]) {
     super();
 
@@ -17,10 +19,16 @@ export class MapSet<T extends Node | Edge> extends Map<string, T> {
    * Create a nodeset from a list of nodes
    * @param elements
    */
-  static from<T extends Node | Edge>(...elements: T[]): MapSet<T> {
+  static from<T extends Node | Edge | Neo4jComponentNode | Neo4jComponentRelationship>(
+    ...elements: T[]
+  ): MapSet<T> {
     const set = new MapSet<T>();
-    elements.forEach((node) => {
-      set.set(node.data.id, node);
+    elements.forEach((element) => {
+      if ('data' in element) {
+        set.set(element.data.id, element);
+      } else {
+        set.set(element.elementId, element);
+      }
     });
     return set;
   }
@@ -31,11 +39,6 @@ export class MapSet<T extends Node | Edge> extends Map<string, T> {
   get(key: string | undefined): T | undefined {
     if (key === undefined) return undefined;
     return super.get(key);
-  }
-
-  add(element: T): MapSet<T> {
-    this.set(element.data.id, element);
-    return this;
   }
 
   /**

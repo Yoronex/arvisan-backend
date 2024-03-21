@@ -2,6 +2,7 @@ import { Node } from './Node';
 import { Edge } from './Edge';
 import Violations from './violations';
 import { MapSet } from './MapSet';
+import Neo4jComponentNode from './Neo4jComponentNode';
 
 /**
  * Graph as labelled property graph (cytoscape.js format)
@@ -14,7 +15,7 @@ export interface Graph {
 
 export interface IntermediateGraph {
   name: string,
-  nodes: MapSet<Node>,
+  nodes: MapSet<Neo4jComponentNode>,
   edges: MapSet<Edge>,
 }
 

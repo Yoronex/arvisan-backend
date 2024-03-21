@@ -1,12 +1,12 @@
 import {
-  INeo4jComponentRelationship,
   INeo4jComponentNode,
+  INeo4jComponentRelationship,
   ModuleDependencyProfileCategory,
 } from '../../database/entities';
 import { NodeData } from '../../entities/Node';
 import { EdgeData } from '../../entities/Edge';
-import { Neo4jComponentRelationship } from '../../entities';
-import { Graph, IntermediateGraph } from '../../entities/Graph';
+import { Neo4jComponentRelationship, Graph, IntermediateGraph } from '../../entities';
+import Neo4jComponentNode from '../../entities/Neo4jComponentNode';
 
 export default class ElementParserService {
   /**
@@ -42,7 +42,9 @@ export default class ElementParserService {
     return [label, classNames];
   }
 
-  private static toDependencyProfile(category?: ModuleDependencyProfileCategory) {
+  public static toDependencyProfile(
+    category?: ModuleDependencyProfileCategory,
+  ): [number, number, number, number] {
     switch (category) {
       case ModuleDependencyProfileCategory.HIDDEN: return [1, 0, 0, 0];
       case ModuleDependencyProfileCategory.INBOUND: return [0, 1, 0, 0];
@@ -58,21 +60,21 @@ export default class ElementParserService {
    * @param selectedId
    */
   public static toNodeData(
-    node: INeo4jComponentNode,
+    node: INeo4jComponentNode | Neo4jComponentNode,
     selectedId?: string,
   ): NodeData {
     return {
       id: node.elementId,
       label: node.properties.simpleName,
+      parent: 'parent' in node ? node.parent?.elementId : undefined,
       properties: {
         fullName: node.properties.fullName,
-        kind: node.properties.layerName,
         layer: this.getLongestLabel(node.labels),
         color: node.properties.color,
         depth: Number(node.properties.depth),
         selected: node.elementId === selectedId ? 'true' : 'false',
         dependencyProfileCategory: node.properties.dependencyProfileCategory,
-        dependencyProfile: this.toDependencyProfile(node.properties.dependencyProfileCategory),
+        dependencyProfile: 'dependencyProfile' in node ? node.dependencyProfile : this.toDependencyProfile(node.properties.dependencyProfileCategory),
       },
     };
   }
@@ -111,7 +113,8 @@ export default class ElementParserService {
   public static toGraph(intermediateGraph: IntermediateGraph): Graph {
     return {
       name: intermediateGraph.name,
-      nodes: [...intermediateGraph.nodes.values()],
+      nodes: [...intermediateGraph.nodes
+        .map((n) => ({ data: ElementParserService.toNodeData(n) }))],
       edges: [...intermediateGraph.edges.values()],
     };
   }

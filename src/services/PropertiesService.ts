@@ -31,7 +31,7 @@ export default class PropertiesService {
       selfEdges: true,
     });
 
-    return nodes.map((node): Domain => ({
+    return nodes.map((n) => ({ data: ElementParserService.toNodeData(n) })).map((node): Domain => ({
       ...node.data,
       nrOutgoingDependencies: edges
         .filter((e) => e.data.source === node.data.id && e.data.target !== node.data.id)

@@ -6,7 +6,7 @@ import {
 } from '../database/entities';
 import { Neo4jComponentRelationship } from './Neo4jComponentRelationship';
 import { MapSet } from './MapSet';
-import { Node } from './Node';
+import Neo4jComponentNode from './Neo4jComponentNode';
 
 export enum Neo4jDependencyType {
   NONE,
@@ -35,16 +35,13 @@ export class Neo4jComponentPath {
    * two lists, one with relationships going "down" and the other going "up".
    * @param relationshipsToGroup
    * @param nodes
-   * @param allContainRelationships All existing (queried) containment relationships.
-   * Required to find context of each start and end node of dependency relationships.
    * @param selectedDomain
    * @param containEdgeName
    * @private
    */
   private groupAndSet(
     relationshipsToGroup: INeo4jComponentRelationship[],
-    nodes: MapSet<Node>,
-    allContainRelationships: Neo4jRelationshipMappings,
+    nodes: MapSet<Neo4jComponentNode>,
     selectedDomain: boolean,
     containEdgeName = 'CONTAINS',
   ) {
@@ -90,20 +87,18 @@ export class Neo4jComponentPath {
       .map((dep) => new Neo4jComponentRelationship(
         dep,
         nodes,
-        allContainRelationships,
       ));
   }
 
   constructor(
     record: Record<INeo4jComponentPath>,
-    nodes: MapSet<Node>,
-    allContainRelationships: Neo4jRelationshipMappings,
+    nodes: MapSet<Neo4jComponentNode>,
     selectedDomain: boolean,
   ) {
     this.source = record.get('source');
     this.target = record.get('target');
 
-    this.groupAndSet(record.get('path'), nodes, allContainRelationships, selectedDomain);
+    this.groupAndSet(record.get('path'), nodes, selectedDomain);
 
     const finalSourceModuleId = this
       .containSourceEdges[this.containSourceEdges.length - 1]?.endNodeElementId

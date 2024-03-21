@@ -13,15 +13,16 @@ export enum DependencyType {
   ENTITY = 'entity',
 }
 
-export type INeo4jComponentNode = Neo4jNode<Integer, {
+export type INeo4jNodeProperties = {
   color: string;
   depth: number;
   id: string;
-  layerName: string;
   simpleName: string;
   fullName: string;
   dependencyProfileCategory?: ModuleDependencyProfileCategory;
-}>;
+};
+
+export type INeo4jComponentNode = Neo4jNode<Integer, INeo4jNodeProperties>;
 
 export type INeo4jRelationshipProperties = {
   referenceType: string;

@@ -1,5 +1,5 @@
 import {
-  Edge, Graph, IntermediateGraph, Neo4jComponentPath, Node,
+  Edge, IntermediateGraph, Neo4jComponentPath, Node,
 } from '../../entities';
 import { INeo4jComponentRelationship } from '../../database/entities';
 import ElementParserService from './ElementParserService';
@@ -8,6 +8,7 @@ import { Neo4jDependencyType } from '../../entities/Neo4jComponentPath';
 
 import { MapSet } from '../../entities/MapSet';
 import { filterDuplicates } from '../../helpers/array';
+import Neo4jComponentNode from '../../entities/Neo4jComponentNode';
 
 export interface Range {
   min: number;
@@ -39,7 +40,7 @@ export default class ProcessingService {
 
   constructor(
     preprocessor: PreProcessingService,
-    public readonly contextGraph: Graph = { edges: [], nodes: [], name: 'undefined' },
+    public readonly contextGraph: IntermediateGraph = { edges: new MapSet<Edge>(), nodes: new MapSet<Neo4jComponentNode>(), name: 'undefined' },
   ) {
     this.original = preprocessor;
   }
@@ -103,7 +104,7 @@ export default class ProcessingService {
     const newEdges2 = edges.reduce((newEdges: MapSet<Edge>, edge) => {
       const existingEdge = newEdges.find((e) => e.data.source === edge.data.source
         && e.data.target === edge.data.target);
-      if (!existingEdge) return newEdges.add(edge);
+      if (!existingEdge) return newEdges.set(edge.data.id, edge);
 
       existingEdge.data.properties.weight += edge.data.properties.weight;
       existingEdge.data.properties.nrModuleDependencies += edge
@@ -149,7 +150,7 @@ export default class ProcessingService {
         if (abstractionMap.has(e.endNodeElementId)) {
           e.endNodeElementId = abstractionMap.get(e.endNodeElementId) as string;
         }
-        e.setNodeReferences(MapSet.from(...this.contextGraph.nodes).concat(this.original.nodes));
+        e.setNodeReferences(this.contextGraph.nodes.concat(this.original.nodes));
         return e;
       });
       return record;
@@ -211,7 +212,10 @@ export default class ProcessingService {
   /**
    * Only keep the nodes that are the start or end point of an edge
    */
-  filterNodesByEdges(nodes: MapSet<Node>, edges: MapSet<Edge>): MapSet<Node> {
+  filterNodesByEdges(
+    nodes: MapSet<Neo4jComponentNode>,
+    edges: MapSet<Edge>,
+  ): MapSet<Neo4jComponentNode> {
     const nodesOnPaths: string[] = edges
       // Get the source and target from each edge
       .map((e): string[] => [e.data.source, e.data.target])
@@ -231,34 +235,18 @@ export default class ProcessingService {
   }
 
   /**
-   * Replace every given edge with a parent relationship, which is supported by Cytoscape.
-   */
-  addParentRelationship(nodes: MapSet<Node>, parentEdges: MapSet<Edge>): MapSet<Node> {
-    const nodesCopy: MapSet<Node> = new MapSet(nodes);
-    parentEdges.forEach((e) => {
-      const target = nodesCopy.get(e.data.target);
-      if (!target) return;
-      target.data.parent = e.data.source;
-    });
-    return nodesCopy;
-  }
-
-  /**
    *
    */
   replaceEdgeWithParentRelationship(
-    nodes: MapSet<Node>,
+    nodes: MapSet<Neo4jComponentNode>,
     edges: MapSet<Edge>,
     relationship: string,
-  ): { nodes: MapSet<Node>, dependencyEdges: MapSet<Edge> } {
+  ): { nodes: MapSet<Neo4jComponentNode>, dependencyEdges: MapSet<Edge> } {
     // Split the list of edges into "contain" edges and all other edges
-    const containEdges = edges.filter((e) => e.data.interaction === relationship);
+    // const containEdges = edges.filter((e) => e.data.interaction === relationship);
     const dependencyEdges = edges.filter((e) => e.data.interaction !== relationship);
 
-    // Replace every "contain" edge with a parent relationship, which is supported by Cytoscape.
-    const newNodes = this.addParentRelationship(nodes, containEdges);
-
-    return { nodes: newNodes, dependencyEdges };
+    return { nodes, dependencyEdges };
   }
 
   /**

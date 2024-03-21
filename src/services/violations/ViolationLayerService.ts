@@ -6,6 +6,7 @@ import { LayerViolation, LayerViolationSpec } from '../../entities/violations/La
 import ElementParserService from '../processing/ElementParserService';
 import { Neo4jClient } from '../../database/Neo4jClient';
 import { INeo4jComponentNode } from '../../database/entities';
+import Neo4jComponentNode from '../../entities/Neo4jComponentNode';
 
 interface Neo4jViolation {
   source: INeo4jComponentNode;
@@ -64,11 +65,11 @@ export class ViolationLayerService {
    * @private
    */
   private isLayerViolation(
-    sourceLayer: Node | undefined,
-    targetLayer: Node | undefined,
+    sourceLayer: Neo4jComponentNode | undefined,
+    targetLayer: Neo4jComponentNode | undefined,
   ): boolean {
-    const sourceLayerName = sourceLayer?.data.properties.layer;
-    const targetLayerName = targetLayer?.data.properties.layer;
+    const sourceLayerName = sourceLayer?.layer;
+    const targetLayerName = targetLayer?.layer;
     return !!this.layerViolationSpecs.find((v) => v.fromSublayer === sourceLayerName
       && v.toSublayer === targetLayerName);
   }
@@ -80,8 +81,8 @@ export class ViolationLayerService {
 
     const edges = records.map((r) => r.dependencyEdges.flat()).flat();
     this.violatingRelationships = edges.filter((e) => {
-      const startSublayer = e.getLayerNode(e.startNodeParents ?? [], 'Sublayer');
-      const endSublayer = e.getLayerNode(e.endNodeParents ?? [], 'Sublayer');
+      const startSublayer = e.originalStartNode.getLayerNode('Sublayer');
+      const endSublayer = e.originalEndNode.getLayerNode('Sublayer');
       const isViolation = this.isLayerViolation(startSublayer, endSublayer);
       if (isViolation) {
         e.violations.subLayer = true;
@@ -97,11 +98,11 @@ export class ViolationLayerService {
         ...ElementParserService.toEdgeData(r),
         actualEdges: [{
           ...ElementParserService.toEdgeData(r.originalRelationship),
-          sourceNode: r.originalStartNode.data,
-          targetNode: r.originalEndNode.data,
+          sourceNode: ElementParserService.toNodeData(r.originalStartNode),
+          targetNode: ElementParserService.toNodeData(r.originalEndNode),
         }],
-        sourceNode: r.startNode?.data ?? r.originalStartNode.data,
-        targetNode: r.endNode?.data ?? r.originalEndNode.data,
+        sourceNode: ElementParserService.toNodeData(r.startNode),
+        targetNode: ElementParserService.toNodeData(r.endNode),
       }))
       .reduce((mergedEdges: LayerViolation[], e) => {
         const index = mergedEdges
