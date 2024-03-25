@@ -20,12 +20,15 @@ export default class Neo4jComponentNode implements INeo4jComponentNode {
 
   dependencyProfile: [number, number, number, number];
 
-  constructor(node: INeo4jComponentNode) {
+  selected: boolean;
+
+  constructor(node: INeo4jComponentNode, selectedId?: string) {
     this.elementId = node.elementId;
     this.identity = node.identity;
     this.labels = node.labels;
     this.layer = ElementParserService.getLongestLabel(node.labels);
     this.properties = node.properties;
+    this.selected = node.elementId === selectedId;
 
     this.dependencyProfile = ElementParserService
       .toDependencyProfile(node.properties.dependencyProfileCategory);

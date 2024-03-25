@@ -48,7 +48,7 @@ export default class PreProcessingService {
         }
       }));
 
-    this.nodes = this.getAllNodes(records, allContainRelationships);
+    this.nodes = this.getAllNodes(records, allContainRelationships, selectedId);
     this.selectedNode = this.nodes.get(selectedId);
 
     const chunkRecords = this.splitRelationshipsIntoChunks(
@@ -67,13 +67,14 @@ export default class PreProcessingService {
   private getAllNodes(
     records: Record<INeo4jComponentPath>[],
     allContainRelationships: Neo4jRelationshipMappings,
+    selectedId?: string,
   ): MapSet<Neo4jComponentNode> {
     const nodeSet: MapSet<Neo4jComponentNode> = new MapSet();
     records.forEach((r) => [r.get('source'), r.get('target')]
       .forEach((field) => {
         const nodeId = field.elementId;
         if (nodeSet.has(nodeId)) return;
-        nodeSet.set(nodeId, new Neo4jComponentNode(field));
+        nodeSet.set(nodeId, new Neo4jComponentNode(field, selectedId));
       }));
 
     nodeSet.forEach((n) => n.setParentChildNodes(nodeSet, allContainRelationships));
