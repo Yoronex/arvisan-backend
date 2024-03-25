@@ -32,12 +32,19 @@ export interface NodeData {
      */
     dependencyProfile: number[];
 
-    // (Aggregated) module details
-    fileSizeKb?: number;
+    // (Aggregated) module details, directly from DB
+    fileSizeKB?: number;
     nrScreens?: number;
     nrEntities?: number;
     nrPublicElements?: number;
     nrRESTConsumers?: number;
     nrRESTProducers?: number;
+
+    /**
+     * How many lowest-layer nodes are contained in this node.
+     * 1 if node itself is a leaf.
+     * Undefined if it cannot be calculated
+     */
+    nrLeaves?: number;
   },
 }

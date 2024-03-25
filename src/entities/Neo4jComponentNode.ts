@@ -62,7 +62,28 @@ export default class Neo4jComponentNode implements INeo4jComponentNode {
     return [this];
   }
 
+  /**
+   * Get a list of all children of this node, including itself
+   */
+  getChildren(): Neo4jComponentNode[] {
+    if (this.children.length === 0) return [this];
+    return this.children.reduce((children: Neo4jComponentNode[], child) => children
+      .concat(child.getChildren()), []);
+  }
+
+  /**
+   * Get the node that belongs in the given upper layer.
+   * Undefined if it does not exist, i.e. when the node is in a lower layer.
+   * @param layerName
+   */
   getLayerNode(layerName: string) {
     return this.getParents().find((p) => p.labels.includes(layerName));
+  }
+
+  /**
+   * Get a list of all children of this node that do not have children themselves
+   */
+  getLeafChildren(): Neo4jComponentNode[] {
+    return this.getChildren().filter((n) => n.children.length === 0);
   }
 }

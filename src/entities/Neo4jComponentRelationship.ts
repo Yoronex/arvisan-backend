@@ -2,9 +2,7 @@ import { Integer } from 'neo4j-driver';
 import {
   INeo4jComponentRelationship,
   INeo4jRelationshipProperties,
-  Neo4jRelationshipMappings,
 } from '../database/entities';
-import { Node } from './Node';
 import { EdgeViolations } from './Edge';
 import { MapSet } from './MapSet';
 import Neo4jComponentNode from './Neo4jComponentNode';
