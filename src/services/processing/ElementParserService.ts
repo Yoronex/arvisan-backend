@@ -75,6 +75,12 @@ export default class ElementParserService {
         selected: ('selected' in node && node.selected) || node.elementId === selectedId ? 'true' : 'false',
         dependencyProfileCategory: node.properties.dependencyProfileCategory,
         dependencyProfile: 'dependencyProfile' in node ? node.dependencyProfile : this.toDependencyProfile(node.properties.dependencyProfileCategory),
+        fileSizeKb: node.properties.fileSizeKb,
+        nrScreens: node.properties.nrScreens,
+        nrEntities: node.properties.nrEntities,
+        nrPublicElements: node.properties.nrPublicElements,
+        nrRESTConsumers: node.properties.nrRESTConsumers,
+        nrRESTProducers: node.properties.nrRESTProducers,
       },
     };
   }

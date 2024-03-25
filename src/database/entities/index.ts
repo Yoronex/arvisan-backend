@@ -20,6 +20,14 @@ export type INeo4jNodeProperties = {
   simpleName: string;
   fullName: string;
   dependencyProfileCategory?: ModuleDependencyProfileCategory;
+
+  // (Aggregated) module details
+  fileSizeKb?: number;
+  nrScreens?: number;
+  nrEntities?: number;
+  nrPublicElements?: number;
+  nrRESTConsumers?: number;
+  nrRESTProducers?: number;
 };
 
 export type INeo4jComponentNode = Neo4jNode<Integer, INeo4jNodeProperties>;

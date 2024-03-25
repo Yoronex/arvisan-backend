@@ -1,7 +1,11 @@
 import neo4j, { Record, RecordShape } from 'neo4j-driver';
 
 export class Neo4jClient {
-  private driver = neo4j.driver(process.env.NEO4J_URL || '', neo4j.auth.basic(process.env.NEO4J_USERNAME || '', process.env.NEO4J_PASSWORD || ''));
+  private driver = neo4j.driver(
+    process.env.NEO4J_URL || '',
+    neo4j.auth.basic(process.env.NEO4J_USERNAME || '', process.env.NEO4J_PASSWORD || ''),
+    { disableLosslessIntegers: true },
+  );
 
   /**
    * Execute the given query and process the results

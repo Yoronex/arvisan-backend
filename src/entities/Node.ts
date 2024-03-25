@@ -31,5 +31,13 @@ export interface NodeData {
      * [hidden, inbound, outbound, transit] if internal (tree) node. Undefined if leaf node.
      */
     dependencyProfile: number[];
+
+    // (Aggregated) module details
+    fileSizeKb?: number;
+    nrScreens?: number;
+    nrEntities?: number;
+    nrPublicElements?: number;
+    nrRESTConsumers?: number;
+    nrRESTProducers?: number;
   },
 }
