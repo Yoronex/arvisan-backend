@@ -247,7 +247,7 @@ export default class VisualizationService {
       outgoingRange,
     }, treeGraph);
 
-    const { graph } = new PostProcessingService(treeGraph, dependencyGraph);
+    const { graph } = new PostProcessingService(dependencyGraph);
 
     await this.client.destroy();
 

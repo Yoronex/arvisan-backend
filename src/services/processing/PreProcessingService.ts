@@ -69,14 +69,15 @@ export default class PreProcessingService {
     allContainRelationships: Neo4jRelationshipMappings,
     selectedId?: string,
   ): MapSet<Neo4jComponentNode> {
-    const nodeSet: MapSet<Neo4jComponentNode> = new MapSet();
+    const currentNodeSet = new MapSet<Neo4jComponentNode>();
     records.forEach((r) => [r.get('source'), r.get('target')]
       .forEach((field) => {
         const nodeId = field.elementId;
-        if (nodeSet.has(nodeId)) return;
-        nodeSet.set(nodeId, new Neo4jComponentNode(field, selectedId));
+        if (currentNodeSet.has(nodeId)) return;
+        currentNodeSet.set(nodeId, new Neo4jComponentNode(field, selectedId));
       }));
 
+    const nodeSet = this.context ? currentNodeSet.concat(this.context.nodes) : currentNodeSet;
     nodeSet.forEach((n) => n.setParentChildNodes(nodeSet, allContainRelationships));
 
     this.calculateDependencyProfile(nodeSet);
@@ -92,9 +93,6 @@ export default class PreProcessingService {
   private getDependencyProfile(
     layerNodes: MapSet<Neo4jComponentNode>,
   ): void {
-    // const layerEdges = containEdges.filter((e) => layerNodes.has(e.data.target));
-    // if (layerEdges.size === 0) return new MapSet<Node>();
-    // const parents = allNodes.filter((n) => !!layerEdges.find((e) => e.data.source === n.data.id));
     const parentList = layerNodes.map((n) => n.parent)
       .filter((p) => p != null)
       .map((p) => p!)
