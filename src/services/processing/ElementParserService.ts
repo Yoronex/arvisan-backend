@@ -75,6 +75,7 @@ export default class ElementParserService {
         selected: ('selected' in node && node.selected) || node.elementId === selectedId ? 'true' : 'false',
         dependencyProfileCategory: node.properties.dependencyProfileCategory,
         dependencyProfile: 'dependencyProfile' in node ? node.dependencyProfile : this.toDependencyProfile(node.properties.dependencyProfileCategory),
+        cohesion: node.properties.cohesion,
         fileSizeKB: node.properties.fileSizeKB,
         nrScreens: node.properties.nrScreens,
         nrEntities: node.properties.nrEntities,

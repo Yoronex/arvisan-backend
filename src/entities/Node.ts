@@ -31,6 +31,8 @@ export interface NodeData {
      * [hidden, inbound, outbound, transit] if internal (tree) node. Undefined if leaf node.
      */
     dependencyProfile: number[];
+    /** Cohesion metric of leaves within this node */
+    cohesion?: number;
 
     // (Aggregated) module details, directly from DB
     fileSizeKB?: number;

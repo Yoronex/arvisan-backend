@@ -20,6 +20,7 @@ export type INeo4jNodeProperties = {
   simpleName: string;
   fullName: string;
   dependencyProfileCategory?: ModuleDependencyProfileCategory;
+  cohesion?: number;
 
   // (Aggregated) module details
   fileSizeKB?: number;
