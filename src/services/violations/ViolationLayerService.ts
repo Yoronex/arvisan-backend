@@ -1,6 +1,6 @@
 import { Record } from 'neo4j-driver';
 import {
-  Neo4jComponentPath, Node, Neo4jComponentRelationship,
+  Neo4jComponentPath, Neo4jComponentRelationship,
 } from '../../entities';
 import { LayerViolation, LayerViolationSpec } from '../../entities/violations/LayerViolation';
 import ElementParserService from '../processing/ElementParserService';
@@ -38,27 +38,6 @@ export class ViolationLayerService {
   }
 
   /**
-   * Get the given node's Sublayer parent node, if it exists.
-   * It can be nonexistent if the given node is from a higher layer.
-   * @param node
-   * @param nodes
-   * @private
-   */
-  private getSublayerParent(node: Node, nodes: Node[]): Node | null {
-    if (!node.data.parent) return null;
-    const parent = nodes.find((n) => n.data.id === node.data.parent);
-    if (!parent) return null;
-    if (parent.data.properties.layer.includes('Sublayer')) return parent;
-    return this.getSublayerParent(parent, nodes);
-  }
-
-  private getSublayerParentFromId(nodeId: string, nodes: Node[]): Node | null {
-    const node = nodes.find((n) => n.data.id === nodeId);
-    if (!node) return null;
-    return this.getSublayerParent(node, nodes);
-  }
-
-  /**
    * Return whether the given edge is an architectural violation
    * @param sourceLayer
    * @param targetLayer
@@ -70,8 +49,17 @@ export class ViolationLayerService {
   ): boolean {
     const sourceLayerName = sourceLayer?.layer;
     const targetLayerName = targetLayer?.layer;
-    return !!this.layerViolationSpecs.find((v) => v.fromSublayer === sourceLayerName
-      && v.toSublayer === targetLayerName);
+    // Current dependency not in the list of violations, so its not a violation
+    if (!this.layerViolationSpecs.find((v) => v.fromSublayer === sourceLayerName
+      && v.toSublayer === targetLayerName)) return false;
+    if (!sourceLayer || !targetLayer) return false;
+
+    const sourceParents = sourceLayer.getParents();
+    const sourceTop = sourceParents[sourceParents.length - 1];
+    const targetParents = targetLayer.getParents();
+    const targetTop = targetParents[targetParents.length - 1];
+    // Layer violations need to be in the same domain (top level node)
+    return sourceTop.elementId === targetTop.elementId;
   }
 
   public async markAndStoreLayerViolations(

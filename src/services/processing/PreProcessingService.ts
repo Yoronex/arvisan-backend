@@ -135,7 +135,10 @@ export default class PreProcessingService {
     records: Record<INeo4jComponentPath>[],
     selectedDomain: boolean,
   ): Neo4jComponentPath[] {
-    const contextNodes = this.context ? this.context.nodes.concat(this.nodes) : this.nodes;
+    // Merge the nodes from this query with the context and not vice-versa, because only the first
+    // of duplicate nodes is used. Nodes from the context might not contain all references to their
+    // parent nodes.
+    const contextNodes = this.context ? this.nodes.concat(this.context.nodes) : this.nodes;
 
     return records.map((record) => (new Neo4jComponentPath(
       record,
