@@ -13,6 +13,7 @@ import { IntermediateGraphWithViolations } from '../entities/Graph';
 import PreProcessingService from './processing/PreProcessingService';
 import { ViolationLayerService } from './violations';
 import { ViolationBaseService } from './violations/ViolationBaseService';
+import ElementParserService from './processing/ElementParserService';
 
 export interface BaseQueryOptions {
   id: string;
@@ -36,6 +37,12 @@ export interface QueryOptions extends BaseQueryOptions {
   showWeakDependencies?: boolean;
   showStrongDependencies?: boolean;
   showEntityDependencies?: boolean;
+}
+
+interface GetNodesResponse {
+  elementId: string;
+  fullName: string;
+  label: string;
 }
 
 export default class VisualizationService {
@@ -260,5 +267,31 @@ export default class VisualizationService {
       graph,
       violations,
     };
+  }
+
+  /**
+   * Given a partial name, find all nodes that contain that string in their full name
+   * @param partialName
+   */
+  public async findNode(partialName: string): Promise<GetNodesResponse[]> {
+    const query = `
+      MATCH (n)-[:CONTAINS]->(m)
+      WITH collect(n) AS parents, collect(m) as children
+      WITH parents + children as x
+      UNWIND x as b
+      WITH b as a
+      WHERE a.fullName CONTAINS '${partialName}'
+      RETURN DISTINCT elementId(a) as id, a.fullName as fullName, labels(a) as labels`;
+    const results = await this.client.executeQuery<{
+      id: string,
+      fullName: string,
+      labels: string[],
+    }>(query);
+
+    return results.map((r): GetNodesResponse => ({
+      elementId: r.get('id'),
+      fullName: r.get('fullName'),
+      label: ElementParserService.getShortestLabel(r.get('labels')),
+    }));
   }
 }

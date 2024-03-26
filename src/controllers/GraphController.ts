@@ -1,5 +1,5 @@
 import {
-  Body, Controller, Post, Res, Response, Route, Tags,
+  Body, Controller, Get, Post, Query, Res, Response, Route, Tags,
 } from 'tsoa';
 import { TsoaResponse } from '@tsoa/runtime';
 import VisualizationService, { BaseQueryOptions, QueryOptions } from '../services/VisualizationService';
@@ -46,6 +46,23 @@ export class GraphController extends Controller {
   ) {
     try {
       return await new BreadcrumbService().getBreadcrumbsFromSelectedNode(id, layerDepth);
+    } catch (e: any) {
+      if (e.name === 'Neo4jError' && e.code === 'Neo.ClientError.Transaction.TransactionTimedOutClientConfiguration') {
+        this.setStatus(400);
+        errorResponse(400, { message: `Query is too big to finish in ${process.env.NEO4J_QUERY_TIMEOUT}ms` });
+      }
+      throw e;
+    }
+  }
+
+  @Get('nodes')
+  @Response<ErrorResponse>(400, 'Invalid query')
+  public async getNodes(
+  @Res() errorResponse: TsoaResponse<400, ErrorResponse>,
+    @Query() name: string = '',
+  ) {
+    try {
+      return await new VisualizationService().findNode(name);
     } catch (e: any) {
       if (e.name === 'Neo4jError' && e.code === 'Neo.ClientError.Transaction.TransactionTimedOutClientConfiguration') {
         this.setStatus(400);
