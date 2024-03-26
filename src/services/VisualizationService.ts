@@ -198,10 +198,10 @@ export default class VisualizationService {
       return q;
     };
 
-    const buildQuery = (outgoing: boolean = true) => {
+    const buildQuery = (outgoing: boolean = true, dependencyLength = dependencyDepth) => {
       let query = `
             // Get all modules that belong to the selected node
-            MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')-[r1:CONTAINS*0..4]->(moduleOrLayer)${!outgoing ? '<' : ''}-[r2*0..${dependencyDepth}]-${outgoing ? '>' : ''}(dependency:Module)
+            MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')-[r1:CONTAINS*0..4]->(moduleOrLayer)${!outgoing ? '<' : ''}-[r2*0..${dependencyLength}]-${outgoing ? '>' : ''}(dependency:Module)
             // Get the domain of the selected node
             MATCH (selectedNode)<-[:CONTAINS*0..4]-(selectedDomain:Domain)
             // Get the layers, application and domain of all dependencies
@@ -235,6 +235,11 @@ export default class VisualizationService {
     if (showIncoming) {
       const records = await this.client
         .executeQuery<INeo4jComponentPath>(buildQuery(false));
+      neo4jRecords.push(...records);
+    }
+    if (!showIncoming && !showOutgoing) {
+      const records = await this.client
+        .executeQuery<INeo4jComponentPath>(buildQuery(false, 0));
       neo4jRecords.push(...records);
     }
     const {
