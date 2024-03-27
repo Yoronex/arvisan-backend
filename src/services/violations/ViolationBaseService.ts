@@ -1,18 +1,19 @@
 import { EdgeData } from '../../entities/Edge';
-import { IntermediateGraph } from '../../entities';
+import { Neo4jComponentPath } from '../../entities';
 
 export class ViolationBaseService {
   static replaceWithCorrectEdgeIds<T extends EdgeData>(
     violationEdge: T,
-    graph: IntermediateGraph,
+    records: Neo4jComponentPath[],
   ): T {
-    const graphEdge = graph.edges
-      .find((e) => e.data.source === violationEdge.source
-        && e.data.target === violationEdge.target);
+    const dependencyRelationships = records.map((r) => r.dependencyEdges).flat();
+    const graphEdge = dependencyRelationships
+      .find((e) => e.startNodeElementId === violationEdge.source
+        && e.endNodeElementId === violationEdge.target);
     if (graphEdge) {
       return {
         ...violationEdge,
-        id: graphEdge.data.id,
+        id: graphEdge.elementId,
       };
     }
     return violationEdge;

@@ -1,7 +1,7 @@
 import { Node } from './Node';
 import { Edge } from './Edge';
 import Neo4jComponentNode from './Neo4jComponentNode';
-import { Neo4jComponentRelationship } from './Neo4jComponentRelationship';
+import { Neo4jDependencyRelationship } from './Neo4jDependencyRelationship';
 
 export class MapSet<T> extends Map<string, T> {
   constructor(...sets: MapSet<T>[]) {
@@ -19,7 +19,7 @@ export class MapSet<T> extends Map<string, T> {
    * Create a nodeset from a list of nodes
    * @param elements
    */
-  static from<T extends Node | Edge | Neo4jComponentNode | Neo4jComponentRelationship>(
+  static from<T extends Node | Edge | Neo4jComponentNode | Neo4jDependencyRelationship>(
     ...elements: T[]
   ): MapSet<T> {
     const set = new MapSet<T>();

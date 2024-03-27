@@ -18,9 +18,14 @@ export default class Neo4jComponentNode implements INeo4jComponentNode {
 
   children: Neo4jComponentNode[] = [];
 
+  originalNodeBeforeLifting: Neo4jComponentNode | undefined;
+
   dependencyProfile: [number, number, number, number];
 
   selected: boolean;
+
+  /** Whether this node is contained in the selected node (can be too deep) */
+  inSelection: boolean;
 
   constructor(node: INeo4jComponentNode, selectedId?: string) {
     this.elementId = node.elementId;
@@ -29,6 +34,7 @@ export default class Neo4jComponentNode implements INeo4jComponentNode {
     this.layer = ElementParserService.getLongestLabel(node.labels);
     this.properties = node.properties;
     this.selected = node.elementId === selectedId;
+    this.inSelection = this.selected;
 
     this.dependencyProfile = ElementParserService
       .toDependencyProfile(node.properties.dependencyProfileCategory);
@@ -53,7 +59,18 @@ export default class Neo4jComponentNode implements INeo4jComponentNode {
   }
 
   /**
-   * Get a list of all parents of this node, including itself
+   * Given a node ID, set this.inSelection to true if one of this node's parent has the given ID
+   * @param selectedId
+   */
+  markIfInSelection(selectedId: string): void {
+    const parentIds = this.getParents().map((p) => p.elementId);
+    if (parentIds.includes(selectedId)) {
+      this.inSelection = true;
+    }
+  }
+
+  /**
+   * Get a list of all parents of this node, including itself, ordered from lowest to highest level
    */
   getParents(): Neo4jComponentNode[] {
     if (this.parent) {
@@ -63,12 +80,18 @@ export default class Neo4jComponentNode implements INeo4jComponentNode {
   }
 
   /**
-   * Get a list of all children of this node, including itself
+   * Get a list of all children of this node, including itself, ordered from highest to lowest level
+   * @param depth Max depth from the parent node.
+   * 0 if no children should be selected. Undefined if no limit
    */
-  getChildren(): Neo4jComponentNode[] {
-    if (this.children.length === 0) return [this];
-    return this.children.reduce((children: Neo4jComponentNode[], child) => children
-      .concat(child.getChildren()), []);
+  getChildren(depth?: number): Neo4jComponentNode[] {
+    if (depth !== undefined && depth < 0) return [];
+    if (this.children.length === 0) return [];
+    const allChildren = this.children
+      .reduce((children: Neo4jComponentNode[], child) => children.concat(
+        child.getChildren(depth ? depth - 1 : undefined),
+      ), []);
+    return [this as Neo4jComponentNode].concat(allChildren);
   }
 
   /**

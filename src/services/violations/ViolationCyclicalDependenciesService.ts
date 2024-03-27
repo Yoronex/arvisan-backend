@@ -7,6 +7,8 @@ import { DependencyCycleRender } from '../../entities/violations/DependencyCycle
 import { IntermediateGraph, Neo4jComponentPath } from '../../entities';
 import ElementParserService from '../processing/ElementParserService';
 import { ViolationBaseService } from './ViolationBaseService';
+import { MapSet } from '../../entities/MapSet';
+import Neo4jComponentNode from '../../entities/Neo4jComponentNode';
 
 interface Neo4jDependencyPath {
   path: {
@@ -63,14 +65,12 @@ export default class ViolationCyclicalDependenciesService {
    * performed on the graph. Then, remove all cycles that are not in the graph.
    * @param dependencyCycles
    * @param records
-   * @param graph
-   * @param replaceMaps
+   * @param nodes
    */
   public extractAndAbstractDependencyCycles(
     dependencyCycles: DependencyCycle[],
     records: Neo4jComponentPath[],
-    graph: IntermediateGraph,
-    replaceMaps: Map<string, string>,
+    nodes: MapSet<Neo4jComponentNode>,
   ): DependencyCycleRender[] {
     const cycleIndex = (d1: DependencyCycle) => `${d1.node.id}--${d1.path.map((p) => p.id).join('-')}`;
     const existingEdges = records.map((r) => r.dependencyEdges).flat();
@@ -100,14 +100,14 @@ export default class ViolationCyclicalDependenciesService {
         // manually (if they even exist)
         const newD = { ...d };
 
-        const newSourceId = replaceMaps.get(d.source);
-        const sourceNode = graph.nodes.find((n) => n.elementId === newSourceId);
+        const originalSourceNode = nodes.get(d.source);
+        const sourceNode = originalSourceNode?.originalNodeBeforeLifting ?? originalSourceNode;
         if (sourceNode) {
           newD.source = sourceNode.elementId;
           newD.sourceNode = ElementParserService.toNodeData(sourceNode);
         }
-        const newTargetId = replaceMaps.get(d.target);
-        const targetNode = graph.nodes.find((n) => n.elementId === newTargetId);
+        const originalTargetNode = nodes.get(d.target);
+        const targetNode = originalTargetNode?.originalNodeBeforeLifting ?? originalTargetNode;
         if (targetNode) {
           newD.target = targetNode.elementId;
           newD.targetNode = ElementParserService.toNodeData(targetNode);
@@ -127,7 +127,7 @@ export default class ViolationCyclicalDependenciesService {
 
       return newDep;
       // Keep only dependency cycles that have their source node in the current graph
-    }).filter((d) => !!graph.nodes.find((n) => n.elementId === d.node.id))
+    }).filter((d) => !!nodes.get(d.node.id))
       // Generate a new ID for each dependency cycle
       .map((d): DependencyCycleRender => ({ ...d, id: cycleIndex(d) }))
       // Merge all dependency cycles with the same ID

@@ -1,11 +1,11 @@
 import {
   INeo4jComponentNode,
-  INeo4jComponentRelationship,
+  INeo4jComponentRelationship, INeo4jRelationshipProperties,
   ModuleDependencyProfileCategory,
 } from '../../database/entities';
 import { NodeData } from '../../entities/Node';
-import { EdgeData } from '../../entities/Edge';
-import { Neo4jComponentRelationship, Graph, IntermediateGraph } from '../../entities';
+import { EdgeData, EdgeDataProperties } from '../../entities/Edge';
+import { Neo4jDependencyRelationship, Graph, IntermediateGraph } from '../../entities';
 import Neo4jComponentNode from '../../entities/Neo4jComponentNode';
 
 export default class ElementParserService {
@@ -87,12 +87,26 @@ export default class ElementParserService {
     };
   }
 
+  public static toEdgeDataProperties(properties: INeo4jRelationshipProperties): Omit<EdgeDataProperties, 'violations'> {
+    return {
+      referenceKeys: [],
+      referenceTypes: [properties.referenceType],
+      referenceNames: properties.referenceNames?.split('|') ?? [],
+      dependencyTypes: properties.dependencyType
+        ? [properties.dependencyType] : [],
+      nrModuleDependencies: 1,
+      nrFunctionDependencies: Number(properties.nrDependencies) || 1,
+      weight: Number(properties.nrDependencies) || 1,
+      nrCalls: Number(properties.nrCalls) || undefined,
+    };
+  }
+
   /**
    * Given a Neo4J relationship, format it to a CytoScape EdgeData format.
    * @param edge
    */
   public static toEdgeData(
-    edge: INeo4jComponentRelationship | Neo4jComponentRelationship,
+    edge: INeo4jComponentRelationship | Neo4jDependencyRelationship,
   ): EdgeData {
     return {
       id: edge.elementId,
@@ -100,20 +114,12 @@ export default class ElementParserService {
       target: edge.endNodeElementId,
       interaction: edge.type.toLowerCase(),
       properties: {
-        referenceKeys: [],
+        ...this.toEdgeDataProperties(edge.properties),
         violations: {
           subLayer: 'violations' in edge ? edge.violations.subLayer : false,
           dependencyCycle: 'violations' in edge ? edge.violations.dependencyCycle : false,
           any: 'violations' in edge ? edge.violations.subLayer || edge.violations.dependencyCycle : false,
         },
-        referenceTypes: [edge.properties.referenceType],
-        referenceNames: edge.properties.referenceNames?.split('|') ?? [],
-        dependencyTypes: edge.properties.dependencyType
-          ? [edge.properties.dependencyType] : [],
-        nrModuleDependencies: 1,
-        nrFunctionDependencies: Number(edge.properties.nrDependencies) || 1,
-        weight: Number(edge.properties.nrDependencies) || 1,
-        nrCalls: Number(edge.properties.nrCalls) || undefined,
       },
     };
   }

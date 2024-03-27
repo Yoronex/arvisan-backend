@@ -1,5 +1,5 @@
 import {
-  Edge, IntermediateGraph, Neo4jComponentPath, Node,
+  Edge, IntermediateGraph, Neo4jComponentPath, Neo4jDependencyRelationship,
 } from '../../entities';
 import { INeo4jComponentRelationship } from '../../database/entities';
 import ElementParserService from './ElementParserService';
@@ -36,13 +36,27 @@ export interface GraphFilterOptions extends BasicGraphFilterOptions {
 }
 
 export default class ProcessingService {
-  public readonly original: PreProcessingService;
+  public dependencies: MapSet<Neo4jDependencyRelationship>;
+
+  public selectedTreeNodes: MapSet<Neo4jComponentNode> = new MapSet<Neo4jComponentNode>();
 
   constructor(
-    preprocessor: PreProcessingService,
-    public readonly contextGraph: IntermediateGraph = { edges: new MapSet<Edge>(), nodes: new MapSet<Neo4jComponentNode>(), name: 'undefined' },
+    public readonly original: PreProcessingService,
+    maxDepth?: number,
   ) {
-    this.original = preprocessor;
+    let records;
+    if (maxDepth !== undefined) {
+      records = this.applyAbstraction(original.records, maxDepth);
+    } else {
+      records = original.records;
+    }
+
+    // Store individual dependency relationships. Each edge has their parents and a unique ID.
+    // Automatically filters duplicate edges that lie on different paths (by design)
+    this.dependencies = MapSet.from(...records.map((r) => r.dependencyEdges).flat());
+    this.selectedTreeNodes = MapSet.from(
+      ...records.map((r) => r.startNodes.concat(r.endNodes)).flat(),
+    );
   }
 
   /**
@@ -138,22 +152,66 @@ export default class ProcessingService {
   /**
    * Apply an abstraction based on the grouping (clustering) of the nodes
    * @param records List of paths
-   * @param abstractionMap Mapping with which node ids should be abstracted to which node ids
+   * @param depth
    */
-  applyAbstraction(records: Neo4jComponentPath[], abstractionMap: Map<string, string>) {
-    return records.map((record): Neo4jComponentPath => {
-      // eslint-disable-next-line no-param-reassign
-      record.dependencyEdges = record.dependencyEdges.map((e) => {
-        if (abstractionMap.has(e.startNodeElementId)) {
-          e.startNodeElementId = abstractionMap.get(e.startNodeElementId) as string;
+  applyAbstraction(records: Neo4jComponentPath[], depth: number) {
+    records.forEach((record) => {
+      record.liftEdges(depth);
+    });
+    return records;
+  }
+
+  mergeDuplicateLiftedEdges() {
+    this.dependencies = this.dependencies.reduce((result, r) => {
+      const existing = result.find((r2) => r.startNode.elementId === r2.startNode.elementId
+        && r.endNode.elementId === r2.endNode.elementId);
+      if (!existing) {
+        result.set(r.elementId, r);
+      } else {
+        existing.mergeProperties(r.edgeProperties);
+      }
+      return result;
+    }, new MapSet<Neo4jDependencyRelationship>());
+  }
+
+  applyMinMaxRelationshipsFilter(
+    outgoing = true,
+    minRelationships?: number,
+    maxRelationships?: number,
+  ) {
+    let depCounts: Map<string, number>;
+    if (outgoing) {
+      const outgoingDeps = this.dependencies.filter((d) => d.startNode.inSelection);
+      depCounts = outgoingDeps.reduce((counts, dependency) => {
+        const key = dependency.startNode.elementId;
+        const existingCount = counts.get(key);
+        if (!existingCount) {
+          counts.set(key, 1);
+        } else {
+          counts.set(key, existingCount + 1);
         }
-        if (abstractionMap.has(e.endNodeElementId)) {
-          e.endNodeElementId = abstractionMap.get(e.endNodeElementId) as string;
+        return counts;
+      }, new Map<string, number>());
+    } else {
+      const incomingDeps = this.dependencies.filter((d) => d.endNode.inSelection);
+      depCounts = incomingDeps.reduce((counts, dependency) => {
+        const key = dependency.endNode.elementId;
+        const existingCount = counts.get(key);
+        if (!existingCount) {
+          counts.set(key, 1);
+        } else {
+          counts.set(key, existingCount + 1);
         }
-        e.setNodeReferences(this.contextGraph.nodes.concat(this.original.nodes));
-        return e;
-      });
-      return record;
+        return counts;
+      }, new Map<string, number>());
+    }
+
+    this.dependencies = this.dependencies.filter((d) => {
+      const count = depCounts.get(d.startNode.elementId);
+      if (!count) return true;
+      if (minRelationships != null && count < minRelationships) return false;
+      if (maxRelationships != null && count > maxRelationships) return false;
+      return true;
     });
   }
 
@@ -164,7 +222,7 @@ export default class ProcessingService {
    * @param minRelationships
    * @param maxRelationships
    */
-  applyMinMaxRelationshipsFilter(
+  applyMinMaxRelationshipsFilterOld(
     records: Neo4jComponentPath[],
     outgoing = true,
     minRelationships?: number,
@@ -214,11 +272,15 @@ export default class ProcessingService {
    */
   filterNodesByEdges(
     nodes: MapSet<Neo4jComponentNode>,
-    edges: MapSet<Edge>,
+    edges: MapSet<Neo4jDependencyRelationship>,
   ): MapSet<Neo4jComponentNode> {
     const nodesOnPaths: string[] = edges
-      // Get the source and target from each edge
-      .map((e): string[] => [e.data.source, e.data.target])
+      // Get the source and target from each edge (and their parents)
+      .map((e): string[] => {
+        const sourceParents = e.startNode.getParents();
+        const targetParents = e.endNode.getParents();
+        return sourceParents.concat(targetParents).map((n) => n.elementId);
+      })
       // Flatten the 2D array
       .flat()
       // Remove duplicates
@@ -228,10 +290,11 @@ export default class ProcessingService {
   }
 
   /**
-   * Remove all self-edges (edges where the source and target is the same node)
+   * Remove all self-edges (edges where the source and target is the same node) in-place
    */
-  filterSelfEdges(edges: MapSet<Edge>): MapSet<Edge> {
-    return edges.filter((e) => e.data.source !== e.data.target);
+  filterSelfEdges(): void {
+    this.dependencies = this.dependencies
+      .filter((e) => e.startNode.elementId !== e.endNode.elementId);
   }
 
   /**
@@ -258,35 +321,39 @@ export default class ProcessingService {
     name: string,
     options: BasicGraphFilterOptions = {},
   ): IntermediateGraph {
-    const {
-      maxDepth, selfEdges,
-    } = options;
+    const { selfEdges } = options;
 
-    let filteredRecords = this.original.records;
+    this.mergeDuplicateLiftedEdges();
 
-    // Find the nodes that need to be replaced (and with which nodes).
-    // Also, already remove the too-deep nodes
-    let replaceMap: Map<string, string> | undefined;
-    if (maxDepth !== undefined) {
-      replaceMap = this.getAbstractionMap(maxDepth);
-      filteredRecords = this.applyAbstraction(filteredRecords, replaceMap);
-    }
-
-    let edges = this.getAllEdges(filteredRecords);
-    edges = this.mergeDuplicateEdges(edges);
-
-    const nodes = this.filterNodesByEdges(this.original.nodes, edges);
-
-    const replaceResult = this.replaceEdgeWithParentRelationship(nodes, edges, 'contains');
+    const nodes = this
+      .filterNodesByEdges(this.original.nodes, this.dependencies)
+      .concat(this.selectedTreeNodes);
 
     if (selfEdges === false) {
-      replaceResult.dependencyEdges = this.filterSelfEdges(replaceResult.dependencyEdges);
+      this.filterSelfEdges();
     }
+
+    const edges = this.dependencies.map((d): Edge => ({
+      data: {
+        id: d.elementId,
+        source: d.startNode.elementId,
+        target: d.endNode.elementId,
+        interaction: d.type.toLowerCase(),
+        properties: {
+          ...d.edgeProperties,
+          violations: {
+            subLayer: false,
+            dependencyCycle: false,
+            any: false,
+          },
+        },
+      },
+    }));
 
     return {
       name,
-      nodes: replaceResult.nodes,
-      edges: replaceResult.dependencyEdges,
+      nodes,
+      edges: MapSet.from(...edges),
     };
   }
 }

@@ -1,10 +1,9 @@
 import { Record } from 'neo4j-driver';
 import {
   INeo4jComponentRelationship,
-  INeo4jComponentNode,
-  INeo4jComponentPath, Neo4jRelationshipMappings,
+  INeo4jComponentPath,
 } from '../database/entities';
-import { Neo4jComponentRelationship } from './Neo4jComponentRelationship';
+import { Neo4jDependencyRelationship } from './Neo4jDependencyRelationship';
 import { MapSet } from './MapSet';
 import Neo4jComponentNode from './Neo4jComponentNode';
 
@@ -15,15 +14,19 @@ export enum Neo4jDependencyType {
 }
 
 export class Neo4jComponentPath {
-  public source: INeo4jComponentNode;
+  /** Start nodes of this path; From lowest level to highest level */
+  public startNodes: Neo4jComponentNode[];
 
+  /** Neo4j Containment edges, from highest level to lowest level. INVERSE FROM NODES */
   public containSourceEdges: INeo4jComponentRelationship[] = [];
 
-  public dependencyEdges: Neo4jComponentRelationship[] = [];
+  public dependencyEdges: Neo4jDependencyRelationship[] = [];
 
+  /** Neo4j Containment edges, from highest level to lowest level. INVERSE FROM NODES */
   public containTargetEdges: INeo4jComponentRelationship[] = [];
 
-  public target: INeo4jComponentNode;
+  /** End nodes of this path; From lowest level to highest level */
+  public endNodes: Neo4jComponentNode[];
 
   public readonly type: Neo4jDependencyType;
 
@@ -84,7 +87,7 @@ export class Neo4jComponentPath {
     this.containSourceEdges = chunks[0];
     this.containTargetEdges = chunks[chunks.length - 1];
     this.dependencyEdges = chunks.slice(1, chunks.length - 1).flat()
-      .map((dep) => new Neo4jComponentRelationship(
+      .map((dep) => new Neo4jDependencyRelationship(
         dep,
         nodes,
       ));
@@ -95,14 +98,39 @@ export class Neo4jComponentPath {
     nodes: MapSet<Neo4jComponentNode>,
     selectedDomain: boolean,
   ) {
-    this.source = record.get('source');
-    this.target = record.get('target');
-
     this.groupAndSet(record.get('path'), nodes, selectedDomain);
+
+    let startNodeId: string | undefined;
+    if (record.get('path').length === 0) {
+      this.startNodes = [];
+      this.endNodes = [];
+    } else {
+      // There exists at least one relationship. If not in the containment array,
+      // it can be in the dependency array or in the target containment array
+      startNodeId = this
+        .containSourceEdges[this.containSourceEdges.length - 1]?.endNodeElementId
+        ?? this.dependencyEdges[0]?.startNode.elementId
+        ?? this.containTargetEdges[this.containTargetEdges.length - 1]?.endNodeElementId;
+      const startNode = nodes.get(startNodeId);
+      if (startNode == null) {
+        throw new Error(`Start node (ID ${startNodeId}) not found!`);
+      }
+      this.startNodes = startNode.getParents();
+
+      const endNodeId = this
+        .containTargetEdges[this.containTargetEdges.length - 1]?.endNodeElementId
+        ?? this.dependencyEdges[this.dependencyEdges.length - 1]?.endNode.elementId
+        ?? this.containSourceEdges[this.containSourceEdges.length - 1]?.endNodeElementId;
+      const endNode = nodes.get(endNodeId);
+      if (endNode == null) {
+        throw new Error(`End node (ID ${endNodeId}) not found!`);
+      }
+      this.endNodes = endNode.getParents();
+    }
 
     const finalSourceModuleId = this
       .containSourceEdges[this.containSourceEdges.length - 1]?.endNodeElementId
-      ?? this.source.elementId;
+      ?? startNodeId;
 
     if (this.dependencyEdges[0]?.startNodeElementId === finalSourceModuleId) {
       this.type = Neo4jDependencyType.OUTGOING;
@@ -139,5 +167,22 @@ export class Neo4jComponentPath {
     return this.dependencyEdges.flat()[0]?.startNodeElementId
       ?? (this.containSourceEdges[this.containSourceEdges.length - 1]?.endNodeElementId)
       ?? (this.containTargetEdges[this.containTargetEdges.length - 1]?.startNodeElementId);
+  }
+
+  /**
+   * Perform edge lifting if necessary so the returned graph only has "depth" layers below
+   * the selected node
+   * @param depth
+   */
+  public liftEdges(depth: number) {
+    const currentDepth = this.sourceDepth;
+    if (currentDepth <= depth) return;
+
+    const tooDeep = this.sourceDepth - depth;
+    this.containSourceEdges.splice(-tooDeep);
+    this.startNodes.splice(0, tooDeep);
+    this.containTargetEdges.splice(-tooDeep);
+    this.endNodes.splice(0, tooDeep);
+    this.dependencyEdges.forEach((e) => e.liftRelationship(tooDeep));
   }
 }

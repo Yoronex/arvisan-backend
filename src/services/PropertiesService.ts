@@ -26,7 +26,7 @@ export default class PropertiesService {
 
   private formatDomains(records: Record<INeo4jComponentPath>[]): Domain[] {
     const preprocessor = new PreProcessingService(records, undefined, undefined, true);
-    const { nodes, edges } = new ProcessingService(preprocessor).formatToLPG('All domains', {
+    const { nodes, edges } = new ProcessingService(preprocessor, 0).formatToLPG('All domains', {
       maxDepth: 0,
       selfEdges: true,
     });

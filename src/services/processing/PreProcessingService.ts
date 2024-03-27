@@ -79,6 +79,7 @@ export default class PreProcessingService {
 
     const nodeSet = this.context ? currentNodeSet.concat(this.context.nodes) : currentNodeSet;
     nodeSet.forEach((n) => n.setParentChildNodes(nodeSet, allContainRelationships));
+    if (selectedId) nodeSet.forEach((n) => n.markIfInSelection(selectedId));
 
     this.calculateDependencyProfile(nodeSet);
     return nodeSet;

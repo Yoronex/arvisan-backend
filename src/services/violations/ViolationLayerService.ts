@@ -1,6 +1,6 @@
 import { Record } from 'neo4j-driver';
 import {
-  Neo4jComponentPath, Neo4jComponentRelationship,
+  Neo4jComponentPath, Neo4jDependencyRelationship,
 } from '../../entities';
 import { LayerViolation, LayerViolationSpec } from '../../entities/violations/LayerViolation';
 import ElementParserService from '../processing/ElementParserService';
@@ -14,7 +14,7 @@ interface Neo4jViolation {
 }
 
 export class ViolationLayerService {
-  private violatingRelationships: Neo4jComponentRelationship[] = [];
+  private violatingRelationships: Neo4jDependencyRelationship[] = [];
 
   private layerViolationSpecs: LayerViolationSpec[] = [];
 
