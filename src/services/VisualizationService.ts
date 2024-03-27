@@ -3,7 +3,7 @@ import { Neo4jClient } from '../database/Neo4jClient';
 import { IntermediateGraph, Neo4jComponentPath } from '../entities';
 import ProcessingService, { GraphFilterOptions } from './processing/ProcessingService';
 import {
-  DependencyType,
+  DependencyType, INeo4jComponentNode,
   INeo4jComponentPath,
 } from '../database/entities';
 import PostProcessingService from './processing/PostProcessingService';
@@ -38,12 +38,6 @@ export interface QueryOptions extends BaseQueryOptions {
   showWeakDependencies?: boolean;
   showStrongDependencies?: boolean;
   showEntityDependencies?: boolean;
-}
-
-interface GetNodesResponse {
-  elementId: string;
-  fullName: string;
-  label: string;
 }
 
 export default class VisualizationService {
@@ -277,25 +271,21 @@ export default class VisualizationService {
    * Given a partial name, find all nodes that contain that string in their full name
    * @param partialName
    */
-  public async findNode(partialName: string): Promise<GetNodesResponse[]> {
+  public async findNode(partialName: string) {
     const query = `
       MATCH (n)-[:CONTAINS]->(m)
       WITH collect(n) AS parents, collect(m) as children
       WITH parents + children as x
       UNWIND x as b
       WITH b as a
-      WHERE a.fullName CONTAINS '${partialName}'
-      RETURN DISTINCT elementId(a) as id, a.fullName as fullName, labels(a) as labels`;
-    const results = await this.client.executeQuery<{
-      id: string,
-      fullName: string,
-      labels: string[],
-    }>(query);
+      WHERE a.fullName CONTAINS '${partialName}'`;
+    const results = await this.client.executeQuery<{ node: INeo4jComponentNode }>(`${query} RETURN DISTINCT a as node LIMIT 100`);
+    const countRecord = await this.client.executeQuery<{ count: number }>(`${query} RETURN count(DISTINCT a) as count`);
 
-    return results.map((r): GetNodesResponse => ({
-      elementId: r.get('id'),
-      fullName: r.get('fullName'),
-      label: ElementParserService.getShortestLabel(r.get('labels')),
-    }));
+    const records = results.map((r) => ({ data: ElementParserService.toNodeData(r.get('node')) }));
+    return {
+      records,
+      count: countRecord[0].get('count'),
+    };
   }
 }

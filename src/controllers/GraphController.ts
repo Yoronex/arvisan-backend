@@ -1,5 +1,5 @@
 import {
-  Body, Controller, Get, Post, Queries, Query, Res, Response, Route, Tags,
+  Controller, Get, Queries, Query, Res, Response, Route, Tags,
 } from 'tsoa';
 import { TsoaResponse } from '@tsoa/runtime';
 import VisualizationService, { BaseQueryOptions, QueryOptions } from '../services/VisualizationService';
