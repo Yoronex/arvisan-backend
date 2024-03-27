@@ -166,10 +166,12 @@ export default class VisualizationService {
     const addParentsFilter = (query: string) => {
       let q = `${query}`;
 
-      q += 'AND (false ';
+      // Always return the leaf nodes of the given selection, because we need to context of the
+      // selection in case only external relationships should be returned
+      q += 'AND (size(r2) = 0 ';
 
       if (showSelectedInternalRelations && !showDomainInternalRelations) {
-        q += 'OR (selectedNode)-[:CONTAINS*]->(dependency) ';
+        q += 'OR (selectedNode)-[:CONTAINS*]->(dependency) '; // Dependency should be contained in selected node
       }
       if (showDomainInternalRelations) {
         q += 'OR (selectedDomain:Domain)-[:CONTAINS*]->(dependency) '; // Dependency should be in the same domain
