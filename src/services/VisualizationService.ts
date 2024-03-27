@@ -1,7 +1,7 @@
 import { Record } from 'neo4j-driver';
 import { Neo4jClient } from '../database/Neo4jClient';
 import { IntermediateGraph, Neo4jComponentPath } from '../entities';
-import ProcessingService, { GraphFilterOptions, Range } from './processing/ProcessingService';
+import ProcessingService, { GraphFilterOptions } from './processing/ProcessingService';
 import {
   DependencyType,
   INeo4jComponentPath,
@@ -16,7 +16,6 @@ import { ViolationBaseService } from './violations/ViolationBaseService';
 import ElementParserService from './processing/ElementParserService';
 
 export interface BaseQueryOptions {
-  id: string;
   /**
    * @isInt
    * @minimum 0
@@ -25,14 +24,16 @@ export interface BaseQueryOptions {
 }
 
 export interface QueryOptions extends BaseQueryOptions {
-  dependencyDepth: number,
+  dependencyLength: number,
   showSelectedInternalRelations?: boolean,
   showDomainInternalRelations?: boolean,
   showExternalRelations?: boolean,
   showOutgoing?: boolean,
   showIncoming?: boolean,
-  outgoingRange?: Partial<Range>,
-  incomingRange?: Partial<Range>,
+  outgoingRangeMin?: number,
+  outgoingRangeMax?: number,
+  incomingRangeMin?: number,
+  incomingRangeMax?: number,
   selfEdges?: boolean,
   showWeakDependencies?: boolean;
   showStrongDependencies?: boolean;
@@ -155,10 +156,11 @@ export default class VisualizationService {
     };
   }
 
-  public async getGraphFromSelectedNode({
-    id, layerDepth, dependencyDepth,
+  public async getGraphFromSelectedNode(id: string, {
+    layerDepth, dependencyLength,
     showExternalRelations, showDomainInternalRelations, showSelectedInternalRelations,
-    showOutgoing, showIncoming, outgoingRange, incomingRange, selfEdges,
+    showOutgoing, showIncoming, selfEdges,
+    outgoingRangeMin, outgoingRangeMax, incomingRangeMin, incomingRangeMax,
     showWeakDependencies, showStrongDependencies, showEntityDependencies,
   }: QueryOptions): Promise<IntermediateGraphWithViolations> {
     const addParentsFilter = (query: string) => {
@@ -205,10 +207,10 @@ export default class VisualizationService {
       return q;
     };
 
-    const buildQuery = (outgoing: boolean = true, dependencyLength = dependencyDepth) => {
+    const buildQuery = (outgoing: boolean = true, depLength = dependencyLength) => {
       let query = `
             // Get all modules that belong to the selected node
-            MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')-[r1:CONTAINS*0..4]->(moduleOrLayer)${!outgoing ? '<' : ''}-[r2*0..${dependencyLength}]-${outgoing ? '>' : ''}(dependency:Module)
+            MATCH (selectedNode WHERE elementId(selectedNode) = '${id}')-[r1:CONTAINS*0..4]->(moduleOrLayer)${!outgoing ? '<' : ''}-[r2*0..${depLength}]-${outgoing ? '>' : ''}(dependency:Module)
             // Get the domain of the selected node
             MATCH (selectedNode)<-[:CONTAINS*0..4]-(selectedDomain:Domain)
             // Get the layers, application and domain of all dependencies
@@ -255,8 +257,8 @@ export default class VisualizationService {
     } = await this.processGraphAndGetViolations(neo4jRecords, id, {
       maxDepth: layerDepth,
       selfEdges,
-      incomingRange,
-      outgoingRange,
+      incomingRange: { min: incomingRangeMin, max: incomingRangeMax },
+      outgoingRange: { min: outgoingRangeMin, max: outgoingRangeMax },
     }, treeGraph);
 
     const { graph } = new PostProcessingService(dependencyGraph);
