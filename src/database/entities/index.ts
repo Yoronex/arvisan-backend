@@ -8,8 +8,8 @@ export enum ModuleDependencyProfileCategory {
 }
 
 export enum DependencyType {
-  STRONG = 'strong',
-  WEAK = 'weak',
+  COMPILE_TIME = 'compile_time',
+  RUNTIME = 'runtime',
   ENTITY = 'entity',
 }
 

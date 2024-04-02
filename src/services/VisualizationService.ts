@@ -42,8 +42,8 @@ export interface QueryOptions extends BaseQueryOptions {
   /** Return relationships that (after lifting) depend on itself */
   selfEdges?: boolean,
 
-  showWeakDependencies?: boolean;
-  showStrongDependencies?: boolean;
+  showRuntimeDependencies?: boolean;
+  showCompileTimeDependencies?: boolean;
   showEntityDependencies?: boolean;
 }
 
@@ -78,7 +78,7 @@ export default class VisualizationService {
     includeUnclassifiedApplications,
     showOutgoing, showIncoming, selfEdges,
     outgoingRangeMin, outgoingRangeMax, incomingRangeMin, incomingRangeMax,
-    showWeakDependencies, showStrongDependencies, showEntityDependencies,
+    showRuntimeDependencies, showCompileTimeDependencies, showEntityDependencies,
   }: QueryOptions): Promise<IntermediateGraphWithViolations> {
     const addParentsFilter = (query: string) => {
       if (showSelectedInternalRelations && showDomainInternalRelations
@@ -108,19 +108,19 @@ export default class VisualizationService {
     };
 
     const addDependencyTypeFilter = (query: string) => {
-      const showAllDependencies = !!showWeakDependencies
-        && !!showStrongDependencies && !!showEntityDependencies;
+      const showAllDependencies = !!showRuntimeDependencies
+        && !!showCompileTimeDependencies && !!showEntityDependencies;
 
       if (showAllDependencies) return query;
       let q = `${query}`;
 
       q += 'AND (false ';
 
-      if (!showAllDependencies && showWeakDependencies) {
-        q += `OR all(rel in r2 WHERE rel.dependencyType = '${DependencyType.WEAK}') `;
+      if (!showAllDependencies && showRuntimeDependencies) {
+        q += `OR all(rel in r2 WHERE rel.dependencyType = '${DependencyType.RUNTIME}') `;
       }
-      if (!showAllDependencies && showStrongDependencies) {
-        q += `OR all(rel in r2 WHERE rel.dependencyType = '${DependencyType.STRONG}') `;
+      if (!showAllDependencies && showCompileTimeDependencies) {
+        q += `OR all(rel in r2 WHERE rel.dependencyType = '${DependencyType.COMPILE_TIME}') `;
       }
       if (!showAllDependencies && showEntityDependencies) {
         q += `OR all(rel in r2 WHERE rel.dependencyType = '${DependencyType.ENTITY}') `;
