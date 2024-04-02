@@ -39,7 +39,10 @@ export interface EdgeDataProperties {
   nrCalls?: number;
 }
 
-export interface EdgeData {
+/**
+ * Edge data which excludes any graph properties
+ */
+export interface SimpleEdgeData {
   /** Unique edge identifier */
   id: string,
   /** Identifier of source node */
@@ -48,11 +51,17 @@ export interface EdgeData {
   target: string,
   /** Edge label */
   interaction: string,
+}
+export interface EdgeData extends SimpleEdgeData {
   /** Custom properties */
   properties: EdgeDataProperties,
 }
 
-export interface ExtendedEdgeData extends EdgeData {
+/**
+ * Edge data without graph properties, but which explicit
+ * details about source and target nodes
+ */
+export interface ExtendedSimpleEdgeData extends SimpleEdgeData {
   /** Source node object */
   sourceNode: NodeData,
   /** Target node object */

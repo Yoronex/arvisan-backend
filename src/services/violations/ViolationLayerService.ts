@@ -83,9 +83,9 @@ export class ViolationLayerService {
     return this.violatingRelationships
       .filter((r) => r.violations.subLayer)
       .map((r): LayerViolation => ({
-        ...ElementParserService.toEdgeData(r),
+        ...ElementParserService.toSimpleEdgeData(r),
         actualEdges: [{
-          ...ElementParserService.toEdgeData(r.originalRelationship),
+          ...ElementParserService.toSimpleEdgeData(r.originalRelationship),
           sourceNode: ElementParserService.toNodeData(r.originalStartNode),
           targetNode: ElementParserService.toNodeData(r.originalEndNode),
         }],

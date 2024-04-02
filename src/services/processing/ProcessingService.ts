@@ -95,17 +95,16 @@ export default class ProcessingService {
   /**
    * Given a list of records, return a list of all edges in the records, all having weight 1.
    * The resulting list might include duplicate edges.
-   * @param records
    */
-  getAllEdges(records: Neo4jComponentPath[]): MapSet<Edge> {
+  getAllEdges(): MapSet<Edge> {
     const edges = new MapSet<Edge>();
-    records.forEach((record) => record.allEdges.forEach((r) => {
-      const edgeId = r.elementId;
+    this.dependencies.forEach((dependency) => {
+      const edgeId = dependency.elementId;
       if (edges.has(edgeId)) return;
       edges.set(edgeId, {
-        data: ElementParserService.toEdgeData(r),
+        data: ElementParserService.toEdgeData(dependency),
       });
-    }));
+    });
     return edges;
   }
 
@@ -363,27 +362,12 @@ export default class ProcessingService {
       this.filterSelfEdges();
     }
 
-    const edges = this.dependencies.map((d): Edge => ({
-      data: {
-        id: d.elementId,
-        source: d.startNode.elementId,
-        target: d.endNode.elementId,
-        interaction: d.type.toLowerCase(),
-        properties: {
-          ...d.edgeProperties,
-          violations: {
-            subLayer: false,
-            dependencyCycle: false,
-            any: false,
-          },
-        },
-      },
-    }));
+    const edges = this.getAllEdges();
 
     return {
       name,
       nodes,
-      edges: MapSet.from(...edges),
+      edges,
     };
   }
 }

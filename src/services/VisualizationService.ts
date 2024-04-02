@@ -1,8 +1,6 @@
 import { Record } from 'neo4j-driver';
 import { Neo4jClient } from '../database/Neo4jClient';
-import {
-  Edge, IntermediateGraph, Neo4jDependencyRelationship,
-} from '../entities';
+import { IntermediateGraph, Neo4jDependencyRelationship } from '../entities';
 import ProcessingService, { GraphFilterOptions } from './processing/ProcessingService';
 import {
   DependencyType, INeo4jComponentNode,
@@ -104,27 +102,12 @@ export default class VisualizationService {
       processor.filterSelfEdges();
     }
 
-    const edges = processor.dependencies.map((d): Edge => ({
-      data: {
-        id: d.elementId,
-        source: d.startNode.elementId,
-        target: d.endNode.elementId,
-        interaction: d.type.toLowerCase(),
-        properties: {
-          ...d.edgeProperties,
-          violations: {
-            subLayer: false,
-            dependencyCycle: false,
-            any: false,
-          },
-        },
-      },
-    }));
+    const edges = processor.getAllEdges();
 
     const graph: IntermediateGraph = {
       name: 'Dependency graph',
       nodes,
-      edges: MapSet.from(...edges),
+      edges,
     };
 
     return {

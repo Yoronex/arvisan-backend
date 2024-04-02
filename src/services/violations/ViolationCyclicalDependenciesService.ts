@@ -2,7 +2,7 @@ import { Record } from 'neo4j-driver';
 import { Neo4jClient } from '../../database/Neo4jClient';
 import { DependencyCycle } from '../../entities/violations';
 import { INeo4jComponentRelationship, INeo4jComponentNode } from '../../database/entities';
-import { ExtendedEdgeData } from '../../entities/Edge';
+import { ExtendedSimpleEdgeData } from '../../entities/Edge';
 import { DependencyCycleRender } from '../../entities/violations/DependencyCycle';
 import { Neo4jDependencyRelationship } from '../../entities';
 import ElementParserService from '../processing/ElementParserService';
@@ -35,8 +35,8 @@ export default class ViolationCyclicalDependenciesService {
       const { start, segments } = r.get('path');
       return {
         node: ElementParserService.toNodeData(start),
-        path: segments.map((s): ExtendedEdgeData => ({
-          ...ElementParserService.toEdgeData(s.relationship),
+        path: segments.map((s): ExtendedSimpleEdgeData => ({
+          ...ElementParserService.toSimpleEdgeData(s.relationship),
           sourceNode: ElementParserService.toNodeData(s.start),
           targetNode: ElementParserService.toNodeData(s.end),
         })),
@@ -75,7 +75,7 @@ export default class ViolationCyclicalDependenciesService {
 
     return dependencyCycles.map((dep) => {
       const newDep: DependencyCycleRender = { ...dep, actualCycles: [dep], id: cycleIndex(dep) };
-      const newPath = dep.path.map((d): ExtendedEdgeData => {
+      const newPath = dep.path.map((d): ExtendedSimpleEdgeData => {
         const existingEdge = dependencies
           .find((r) => r.originalElementId === d.id);
 

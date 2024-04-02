@@ -6,7 +6,6 @@ import {
 import { EdgeDataProperties, EdgeViolations } from './Edge';
 import { MapSet } from './MapSet';
 import Neo4jComponentNode from './Neo4jComponentNode';
-import ElementParserService from '../services/processing/ElementParserService';
 
 export class Neo4jDependencyRelationship implements INeo4jComponentRelationship {
   private static DEPENDENCY_PARENTS_DEPTH: number | undefined;
@@ -64,7 +63,17 @@ export class Neo4jDependencyRelationship implements INeo4jComponentRelationship 
     this.endNodeElementId = dep.endNodeElementId;
     this.type = dep.type;
     this.properties = dep.properties;
-    this.edgeProperties = ElementParserService.toEdgeDataProperties(dep.properties);
+    this.edgeProperties = {
+      referenceKeys: [],
+      referenceTypes: [dep.properties.referenceType],
+      referenceNames: dep.properties.referenceNames?.split('|') ?? [],
+      dependencyTypes: dep.properties.dependencyType
+        ? [dep.properties.dependencyType] : [],
+      nrModuleDependencies: 1,
+      nrFunctionDependencies: Number(dep.properties.nrDependencies) || 1,
+      weight: Number(dep.properties.nrDependencies) || 1,
+      nrCalls: Number(dep.properties.nrCalls) || undefined,
+    };
     this.identity = dep.identity;
     this.start = dep.start;
     this.end = dep.end;
