@@ -1,20 +1,14 @@
 import { Record } from 'neo4j-driver';
 import { Neo4jClient } from '../database/Neo4jClient';
-import { IntermediateGraph, Neo4jDependencyRelationship } from '../entities';
-import ProcessingService, { GraphFilterOptions } from './processing/ProcessingService';
+import ProcessingService from './processing/ProcessingService';
 import {
   DependencyType, INeo4jComponentNode,
   INeo4jComponentPath,
 } from '../database/entities';
 import PostProcessingService from './processing/PostProcessingService';
-import ViolationCyclicalDependenciesService from './violations/ViolationCyclicalDependenciesService';
-import Violations from '../entities/violations';
 import { IntermediateGraphWithViolations } from '../entities/Graph';
 import PreProcessingService from './processing/PreProcessingService';
-import { ViolationLayerService } from './violations';
 import ElementParserService from './processing/ElementParserService';
-import { MapSet } from '../entities/MapSet';
-import Neo4jComponentNode from '../entities/Neo4jComponentNode';
 
 export interface BaseQueryOptions {
   /**
@@ -64,76 +58,6 @@ export default class VisualizationService {
     const records = await this.client.executeQuery<INeo4jComponentPath>(query);
     const preprocessor = new PreProcessingService(records, id);
     return new ProcessingService(preprocessor).formatToLPG('All sublayers and modules');
-  }
-
-  private async processGraphAndGetViolations(
-    neo4jRecords: Record<INeo4jComponentPath>[],
-    selectedId?: string,
-    options: GraphFilterOptions = {},
-    treeGraph?: IntermediateGraph,
-  ): Promise<IntermediateGraphWithViolations> {
-    const {
-      maxDepth,
-      outgoingRange, incomingRange, selfEdges,
-    } = options;
-
-    const preprocessor = new PreProcessingService(neo4jRecords, selectedId, treeGraph);
-    const processor = new ProcessingService(preprocessor, maxDepth);
-
-    // Count how many relationships each child of the selected node has
-    processor.applyMinMaxRelationshipsFilter(true, outgoingRange?.min, outgoingRange?.max);
-    processor.applyMinMaxRelationshipsFilter(false, incomingRange?.min, incomingRange?.max);
-
-    // Give two edges with the same source/target
-    processor.giveDuplicateLiftedEdgesSameElementId();
-
-    const violations = await this.getGraphViolations(
-      processor.dependencies,
-      processor.original.nodes,
-    );
-
-    processor.mergeDuplicateLiftedEdges();
-
-    const nodes = processor
-      .filterNodesByEdges(processor.original.nodes, processor.dependencies)
-      .concat(processor.selectedTreeNodes);
-
-    if (selfEdges === false) {
-      processor.filterSelfEdges();
-    }
-
-    const edges = processor.getAllEdges();
-
-    const graph: IntermediateGraph = {
-      name: 'Dependency graph',
-      nodes,
-      edges,
-    };
-
-    return {
-      graph,
-      violations,
-    };
-  }
-
-  private async getGraphViolations(
-    dependencies: MapSet<Neo4jDependencyRelationship>,
-    nodes: MapSet<Neo4jComponentNode>,
-  ): Promise<Violations> {
-    const violationService = new ViolationCyclicalDependenciesService(this.client);
-
-    const cyclicalDependencies = await violationService.getDependencyCycles();
-    const formattedCyclDeps = violationService
-      .extractAndAbstractDependencyCycles(cyclicalDependencies, dependencies, nodes);
-
-    const layerViolationService = new ViolationLayerService(this.client);
-    await layerViolationService.markAndStoreLayerViolations(dependencies);
-    const sublayerViolations = layerViolationService.extractLayerViolations();
-
-    return {
-      dependencyCycles: formattedCyclDeps,
-      subLayers: sublayerViolations,
-    };
   }
 
   public async getGraphFromSelectedNode(id: string, {
@@ -210,11 +134,11 @@ export default class VisualizationService {
       return query;
     };
 
-    const graphs: IntermediateGraph[] = await Promise.all([
+    const graphs: IntermediateGraphWithViolations[] = await Promise.all([
       this.getParents(id),
       this.getChildren(id, layerDepth),
     ]);
-    const { graph: treeGraph } = new PostProcessingService(...graphs);
+    const { graph: treeGraph } = new PostProcessingService(...graphs.map((g) => g.graph));
 
     const neo4jRecords: Record<INeo4jComponentPath>[] = [];
 
@@ -233,15 +157,18 @@ export default class VisualizationService {
         .executeQuery<INeo4jComponentPath>(buildQuery(false, 0));
       neo4jRecords.push(...records);
     }
+
+    const preprocessor = new PreProcessingService(neo4jRecords, id, treeGraph);
+    const processor = new ProcessingService(preprocessor, layerDepth);
+
     const {
       graph: dependencyGraph,
       violations,
-    } = await this.processGraphAndGetViolations(neo4jRecords, id, {
-      maxDepth: layerDepth,
+    } = await processor.formatToLPG('Dependency graph', {
       selfEdges,
       incomingRange: { min: incomingRangeMin, max: incomingRangeMax },
       outgoingRange: { min: outgoingRangeMin, max: outgoingRangeMax },
-    }, treeGraph);
+    });
 
     const { graph } = new PostProcessingService(dependencyGraph);
 

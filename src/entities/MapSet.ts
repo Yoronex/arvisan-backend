@@ -1,9 +1,16 @@
-import { Node } from './Node';
-import { Edge } from './Edge';
-import Neo4jComponentNode from './Neo4jComponentNode';
-import { Neo4jDependencyRelationship } from './Neo4jDependencyRelationship';
+export class MapSet<T extends object> extends Map<string, T> {
+  private originalIdMap: Map<string, string> = new Map();
 
-export class MapSet<T> extends Map<string, T> {
+  set(key: string, value: T): this {
+    if ('originalElementId' in value && typeof value.originalElementId === 'string') {
+      this.originalIdMap.set(value.originalElementId, key);
+    } else if ('originalId' in value && typeof value.originalId === 'string') {
+      this.originalIdMap.set(value.originalId, key);
+    }
+
+    return super.set(key, value);
+  }
+
   constructor(...sets: MapSet<T>[]) {
     super();
 
@@ -16,19 +23,18 @@ export class MapSet<T> extends Map<string, T> {
   }
 
   /**
-   * Create a nodeset from a list of nodes
+   * Create a MapSet from a list of elements
+   * @param getKey Given a value, return its key
    * @param elements
    */
-  static from<T extends Node | Edge | Neo4jComponentNode | Neo4jDependencyRelationship>(
+  static from<T extends object>(
+    getKey: (t: T) => string,
     ...elements: T[]
   ): MapSet<T> {
     const set = new MapSet<T>();
     elements.forEach((element) => {
-      if ('data' in element) {
-        set.set(element.data.id, element);
-      } else {
-        set.set(element.elementId, element);
-      }
+      const key = getKey(element);
+      set.set(key, element);
     });
     return set;
   }
@@ -39,6 +45,15 @@ export class MapSet<T> extends Map<string, T> {
   get(key: string | undefined): T | undefined {
     if (key === undefined) return undefined;
     return super.get(key);
+  }
+
+  /**
+   * Same as MapSet.get(), but applies to an original ID (if it exists).
+   * Returns undefined if no match has been found with the original key.
+   */
+  getOriginal(originalKey: string | undefined): T | undefined {
+    if (originalKey === undefined) return undefined;
+    return this.get(this.originalIdMap.get(originalKey));
   }
 
   /**

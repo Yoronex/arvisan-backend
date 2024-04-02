@@ -76,8 +76,7 @@ export default class ViolationCyclicalDependenciesService {
     return dependencyCycles.map((dep) => {
       const newDep: DependencyCycleRender = { ...dep, actualCycles: [dep], id: cycleIndex(dep) };
       const newPath = dep.path.map((d): ExtendedSimpleEdgeData => {
-        const existingEdge = dependencies
-          .find((r) => r.originalElementId === d.id);
+        const existingEdge = dependencies.getOriginal(d.id);
 
         // Edge exists within the rendered graph
         if (existingEdge) {

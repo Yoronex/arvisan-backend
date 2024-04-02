@@ -6,6 +6,8 @@ import PreProcessingService from './PreProcessingService';
 import { MapSet } from '../../entities/MapSet';
 import { filterDuplicates } from '../../helpers/array';
 import Neo4jComponentNode from '../../entities/Neo4jComponentNode';
+import { IntermediateGraphWithViolations } from '../../entities/Graph';
+import ViolationService from '../violations/ViolationService';
 
 export interface Range {
   min: number;
@@ -13,13 +15,9 @@ export interface Range {
 }
 
 /**
- * @property selectedId - ID of the selected node to highlight it
- * @property maxDepth - How deep the "CONTAIN" edges on the target side should go.
- * If there is a path between two nodes too deep, create a transitive edge
  * @property selfEdges - If self edges should be returned
  */
 export interface BasicGraphFilterOptions {
-  maxDepth?: number;
   selfEdges?: boolean;
 }
 
@@ -50,17 +48,29 @@ export default class ProcessingService {
 
     // Store individual dependency relationships. Each edge has their parents and a unique ID.
     // Automatically filters duplicate edges that lie on different paths (by design)
-    this.dependencies = MapSet.from(...records.map((r) => r.dependencyEdges).flat());
+    this.dependencies = MapSet.from(
+      (d) => d.elementId,
+      ...records.map((r) => r.dependencyEdges).flat(),
+    );
     this.selectedTreeNodes = MapSet.from(
+      (n) => n.elementId,
       ...records.map((r) => r.startNodes.concat(r.endNodes)).flat(),
     );
+  }
+
+  /**
+   * Get a list of all nodes that are present in this graph
+   */
+  private getAllNodes(): MapSet<Neo4jComponentNode> {
+    return this.filterNodesByEdges(this.original.nodes, this.dependencies)
+      .concat(this.selectedTreeNodes);
   }
 
   /**
    * Given a list of records, return a list of all edges in the records, all having weight 1.
    * The resulting list might include duplicate edges.
    */
-  getAllEdges(): MapSet<Edge> {
+  private getAllEdges(): MapSet<Edge> {
     const edges = new MapSet<Edge>();
     this.dependencies.forEach((dependency) => {
       const edgeId = dependency.elementId;
@@ -77,7 +87,7 @@ export default class ProcessingService {
    * @param records List of paths
    * @param depth
    */
-  applyAbstraction(records: Neo4jComponentPath[], depth: number) {
+  private applyAbstraction(records: Neo4jComponentPath[], depth: number) {
     records.forEach((record) => {
       record.liftEdges(depth);
     });
@@ -88,7 +98,7 @@ export default class ProcessingService {
    * If two edges in the internal dependencies list have the same source and target node,
    * then they also get the same elementId.
    */
-  giveDuplicateLiftedEdgesSameElementId() {
+  private giveDuplicateLiftedEdgesSameElementId() {
     const seenEdges = new Map<string, string>();
     this.dependencies.forEach((d) => {
       const fromTo = [d.startNode.elementId, d.endNode.elementId].join(' -> ');
@@ -106,7 +116,7 @@ export default class ProcessingService {
    * If two dependencies have the same source and target edges, merge these two edges into a
    * single edge. Dependency properties are aggregated by summing numbers and concatenating lists.
    */
-  mergeDuplicateLiftedEdges() {
+  private mergeDuplicateLiftedEdges() {
     this.dependencies = this.dependencies.reduce((result, r) => {
       const existing = result.find((r2) => r.startNode.elementId === r2.startNode.elementId
         && r.endNode.elementId === r2.endNode.elementId);
@@ -138,7 +148,7 @@ export default class ProcessingService {
    * @param minRelationships
    * @param maxRelationships
    */
-  applyMinMaxRelationshipsFilter(
+  private applyMinMaxRelationshipsFilter(
     outgoing = true,
     minRelationships?: number,
     maxRelationships?: number,
@@ -182,7 +192,7 @@ export default class ProcessingService {
   /**
    * Only keep the nodes that are the start or end point of an edge
    */
-  filterNodesByEdges(
+  private filterNodesByEdges(
     nodes: MapSet<Neo4jComponentNode>,
     edges: MapSet<Neo4jDependencyRelationship>,
   ): MapSet<Neo4jComponentNode> {
@@ -204,7 +214,7 @@ export default class ProcessingService {
   /**
    * Remove all self-edges (edges where the source and target is the same node) in-place
    */
-  filterSelfEdges(): void {
+  private filterSelfEdges(): void {
     this.dependencies = this.dependencies
       .filter((e) => e.startNode.elementId !== e.endNode.elementId);
   }
@@ -214,28 +224,46 @@ export default class ProcessingService {
    * @param name graph name
    * @param options
    */
-  formatToLPG(
-    name: string,
-    options: BasicGraphFilterOptions = {},
-  ): IntermediateGraph {
-    const { selfEdges } = options;
+  public async formatToLPG(
+    name: string = '',
+    options: GraphFilterOptions = {},
+  ): Promise<IntermediateGraphWithViolations> {
+    const {
+      outgoingRange, incomingRange, selfEdges,
+    } = options;
+
+    // Count how many relationships each child of the selected node has
+    this.applyMinMaxRelationshipsFilter(true, outgoingRange?.min, outgoingRange?.max);
+    this.applyMinMaxRelationshipsFilter(false, incomingRange?.min, incomingRange?.max);
+
+    // Give two edges with the same source/target
+    this.giveDuplicateLiftedEdgesSameElementId();
+
+    const violationService = new ViolationService();
+    await violationService.getGraphViolations(
+      this.dependencies,
+      this.original.nodes,
+    );
+    await violationService.destroy();
 
     this.mergeDuplicateLiftedEdges();
-
-    const nodes = this
-      .filterNodesByEdges(this.original.nodes, this.dependencies)
-      .concat(this.selectedTreeNodes);
 
     if (selfEdges === false) {
       this.filterSelfEdges();
     }
 
+    const nodes = this.getAllNodes();
     const edges = this.getAllEdges();
 
-    return {
+    const graph: IntermediateGraph = {
       name,
       nodes,
       edges,
+    };
+
+    return {
+      graph,
+      violations: violationService.violations,
     };
   }
 }

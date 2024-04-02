@@ -24,12 +24,13 @@ export default class PropertiesService {
     this.client = new Neo4jClient();
   }
 
-  private formatDomains(records: Record<INeo4jComponentPath>[]): Domain[] {
+  private async formatDomains(records: Record<INeo4jComponentPath>[]): Promise<Domain[]> {
     const preprocessor = new PreProcessingService(records, undefined, undefined, true);
-    const { nodes, edges } = new ProcessingService(preprocessor, 0).formatToLPG('All domains', {
+    const { graph } = await new ProcessingService(preprocessor, 0).formatToLPG('All domains', {
       maxDepth: 0,
       selfEdges: true,
     });
+    const { nodes, edges } = graph;
 
     return nodes.map((n) => ({ data: ElementParserService.toNodeData(n) })).map((node): Domain => ({
       ...node.data,

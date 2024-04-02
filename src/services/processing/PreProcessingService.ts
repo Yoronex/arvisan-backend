@@ -99,7 +99,7 @@ export default class PreProcessingService {
       .map((p) => p!)
       .filter(filterDuplicates);
     if (parentList.length === 0) return;
-    const parents = MapSet.from(...parentList);
+    const parents = MapSet.from((n) => n.elementId, ...parentList);
 
     parents.forEach((parent) => {
       // eslint-disable-next-line no-param-reassign
