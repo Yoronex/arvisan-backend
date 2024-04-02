@@ -161,6 +161,24 @@ export default class ProcessingService {
     return records;
   }
 
+  /**
+   * If two edges in the internal dependencies list have the same source and target node,
+   * then they also get the same elementId.
+   */
+  giveDuplicateLiftedEdgesSameElementId() {
+    const seenEdges = new Map<string, string>();
+    this.dependencies.forEach((d) => {
+      const fromTo = [d.startNode.elementId, d.endNode.elementId].join(' -> ');
+      const existingId = seenEdges.get(fromTo);
+      if (!existingId) {
+        seenEdges.set(fromTo, d.elementId);
+      } else {
+        // eslint-disable-next-line no-param-reassign
+        d.elementId = existingId;
+      }
+    });
+  }
+
   mergeDuplicateLiftedEdges() {
     this.dependencies = this.dependencies.reduce((result, r) => {
       const existing = result.find((r2) => r.startNode.elementId === r2.startNode.elementId

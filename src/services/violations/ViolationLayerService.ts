@@ -1,12 +1,13 @@
 import { Record } from 'neo4j-driver';
 import {
-  Neo4jComponentPath, Neo4jDependencyRelationship,
+  Neo4jDependencyRelationship,
 } from '../../entities';
 import { LayerViolation, LayerViolationSpec } from '../../entities/violations/LayerViolation';
 import ElementParserService from '../processing/ElementParserService';
 import { Neo4jClient } from '../../database/Neo4jClient';
 import { INeo4jComponentNode } from '../../database/entities';
 import Neo4jComponentNode from '../../entities/Neo4jComponentNode';
+import { MapSet } from '../../entities/MapSet';
 
 interface Neo4jViolation {
   source: INeo4jComponentNode;
@@ -14,7 +15,7 @@ interface Neo4jViolation {
 }
 
 export class ViolationLayerService {
-  private violatingRelationships: Neo4jDependencyRelationship[] = [];
+  private violatingRelationships: MapSet<Neo4jDependencyRelationship> = new MapSet();
 
   private layerViolationSpecs: LayerViolationSpec[] = [];
 
@@ -63,12 +64,11 @@ export class ViolationLayerService {
   }
 
   public async markAndStoreLayerViolations(
-    records: Neo4jComponentPath[],
+    dependencies: MapSet<Neo4jDependencyRelationship>,
   ): Promise<void> {
     await this.getLayerViolationSpecs();
 
-    const edges = records.map((r) => r.dependencyEdges.flat()).flat();
-    this.violatingRelationships = edges.filter((e) => {
+    this.violatingRelationships = dependencies.filter((e) => {
       const startSublayer = e.originalStartNode.getLayerNode('Sublayer');
       const endSublayer = e.originalEndNode.getLayerNode('Sublayer');
       const isViolation = this.isLayerViolation(startSublayer, endSublayer);

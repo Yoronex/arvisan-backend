@@ -4,9 +4,8 @@ import { DependencyCycle } from '../../entities/violations';
 import { INeo4jComponentRelationship, INeo4jComponentNode } from '../../database/entities';
 import { ExtendedEdgeData } from '../../entities/Edge';
 import { DependencyCycleRender } from '../../entities/violations/DependencyCycle';
-import { IntermediateGraph, Neo4jComponentPath } from '../../entities';
+import { Neo4jDependencyRelationship } from '../../entities';
 import ElementParserService from '../processing/ElementParserService';
-import { ViolationBaseService } from './ViolationBaseService';
 import { MapSet } from '../../entities/MapSet';
 import Neo4jComponentNode from '../../entities/Neo4jComponentNode';
 
@@ -64,23 +63,21 @@ export default class ViolationCyclicalDependenciesService {
    * Given a list of (indirect) dependency cycles, perform the same abstraction as is
    * performed on the graph. Then, remove all cycles that are not in the graph.
    * @param dependencyCycles
-   * @param records
+   * @param dependencies
    * @param nodes
    */
   public extractAndAbstractDependencyCycles(
     dependencyCycles: DependencyCycle[],
-    records: Neo4jComponentPath[],
+    dependencies: MapSet<Neo4jDependencyRelationship>,
     nodes: MapSet<Neo4jComponentNode>,
   ): DependencyCycleRender[] {
     const cycleIndex = (d1: DependencyCycle) => `${d1.node.id}--${d1.path.map((p) => p.id).join('-')}`;
-    const existingEdges = records.map((r) => r.dependencyEdges).flat();
 
     return dependencyCycles.map((dep) => {
       const newDep: DependencyCycleRender = { ...dep, actualCycles: [dep], id: cycleIndex(dep) };
       const newPath = dep.path.map((d): ExtendedEdgeData => {
-        const existingEdge = existingEdges
-          .find((r) => r.originalStartNode.elementId === d.source
-            && r.originalEndNode.elementId === d.target);
+        const existingEdge = dependencies
+          .find((r) => r.originalElementId === d.id);
 
         // Edge exists within the rendered graph
         if (existingEdge) {
@@ -89,9 +86,10 @@ export default class ViolationCyclicalDependenciesService {
           const targetNode = ElementParserService.toNodeData(existingEdge.startNode);
           return {
             ...d,
-            source: existingEdge.startNodeElementId,
+            id: existingEdge.elementId,
+            source: existingEdge.startNode.elementId,
             sourceNode,
-            target: existingEdge.endNodeElementId,
+            target: existingEdge.endNode.elementId,
             targetNode,
           };
         }
@@ -116,7 +114,6 @@ export default class ViolationCyclicalDependenciesService {
       });
 
       newDep.path = newPath
-        .map((d) => ViolationBaseService.replaceWithCorrectEdgeIds(d, graph))
         // Keep at most only one self edge if the cyclical dependency is fully contained.
         // If not, remove any self edges from the chain
         .filter((e, index, all) => {
@@ -126,8 +123,8 @@ export default class ViolationCyclicalDependenciesService {
       newDep.node = newPath[0].sourceNode;
 
       return newDep;
-      // Keep only dependency cycles that have their source node in the current graph
-    }).filter((d) => !!nodes.get(d.node.id))
+      // Keep only dependency cycles that have at least one dependency edge visualized in the graph
+    }).filter((d) => d.path.some((p) => dependencies.has(p.id)))
       // Generate a new ID for each dependency cycle
       .map((d): DependencyCycleRender => ({ ...d, id: cycleIndex(d) }))
       // Merge all dependency cycles with the same ID

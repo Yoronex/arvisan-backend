@@ -1,6 +1,8 @@
 import { Record } from 'neo4j-driver';
 import { Neo4jClient } from '../database/Neo4jClient';
-import { Edge, IntermediateGraph, Neo4jComponentPath } from '../entities';
+import {
+  Edge, IntermediateGraph, Neo4jDependencyRelationship,
+} from '../entities';
 import ProcessingService, { GraphFilterOptions } from './processing/ProcessingService';
 import {
   DependencyType, INeo4jComponentNode,
@@ -12,7 +14,6 @@ import Violations from '../entities/violations';
 import { IntermediateGraphWithViolations } from '../entities/Graph';
 import PreProcessingService from './processing/PreProcessingService';
 import { ViolationLayerService } from './violations';
-import { ViolationBaseService } from './violations/ViolationBaseService';
 import ElementParserService from './processing/ElementParserService';
 import { MapSet } from '../entities/MapSet';
 import Neo4jComponentNode from '../entities/Neo4jComponentNode';
@@ -85,12 +86,19 @@ export default class VisualizationService {
     processor.applyMinMaxRelationshipsFilter(true, outgoingRange?.min, outgoingRange?.max);
     processor.applyMinMaxRelationshipsFilter(false, incomingRange?.min, incomingRange?.max);
 
+    // Give two edges with the same source/target
+    processor.giveDuplicateLiftedEdgesSameElementId();
+
+    const violations = await this.getGraphViolations(
+      processor.dependencies,
+      processor.original.nodes,
+    );
+
     processor.mergeDuplicateLiftedEdges();
 
     const nodes = processor
       .filterNodesByEdges(processor.original.nodes, processor.dependencies)
       .concat(processor.selectedTreeNodes);
-      // .concat(preprocessor.context?.nodes ?? new MapSet());
 
     if (selfEdges === false) {
       processor.filterSelfEdges();
@@ -119,32 +127,25 @@ export default class VisualizationService {
       edges: MapSet.from(...edges),
     };
 
-    // const violations = await this.getGraphViolations(
-    //   records,
-    //   nodes,
-    // );
-
     return {
       graph,
-      violations: { subLayers: [], dependencyCycles: [] },
+      violations,
     };
   }
 
   private async getGraphViolations(
-    records: Neo4jComponentPath[],
+    dependencies: MapSet<Neo4jDependencyRelationship>,
     nodes: MapSet<Neo4jComponentNode>,
   ): Promise<Violations> {
     const violationService = new ViolationCyclicalDependenciesService(this.client);
 
     const cyclicalDependencies = await violationService.getDependencyCycles();
     const formattedCyclDeps = violationService
-      .extractAndAbstractDependencyCycles(cyclicalDependencies, records, nodes);
+      .extractAndAbstractDependencyCycles(cyclicalDependencies, dependencies, nodes);
 
     const layerViolationService = new ViolationLayerService(this.client);
-    await layerViolationService.markAndStoreLayerViolations(records);
-    let sublayerViolations = layerViolationService.extractLayerViolations();
-    sublayerViolations = sublayerViolations
-      .map((v) => ViolationBaseService.replaceWithCorrectEdgeIds(v, records));
+    await layerViolationService.markAndStoreLayerViolations(dependencies);
+    const sublayerViolations = layerViolationService.extractLayerViolations();
 
     return {
       dependencyCycles: formattedCyclDeps,
