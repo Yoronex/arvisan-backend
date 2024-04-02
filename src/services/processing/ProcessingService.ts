@@ -31,8 +31,10 @@ export interface GraphFilterOptions extends BasicGraphFilterOptions {
 }
 
 export default class ProcessingService {
+  /** Lifted dependency relationships within the context */
   public dependencies: MapSet<Neo4jDependencyRelationship>;
 
+  /** The complete tree from and to the selected node */
   public selectedTreeNodes: MapSet<Neo4jComponentNode> = new MapSet<Neo4jComponentNode>();
 
   constructor(
@@ -142,17 +144,17 @@ export default class ProcessingService {
   }
 
   /**
-   * Apply the min/max relationship filter by removing edges that are incoming/outgoing
-   * to a node that violates the minimum/maximum.
+   * Find which edges should be removed to satisfy the min/max relationship filters
    * @param outgoing
    * @param minRelationships
    * @param maxRelationships
+   * @private
    */
-  private applyMinMaxRelationshipsFilter(
+  private findMinMaxRelationshipsFilterViolations(
     outgoing = true,
     minRelationships?: number,
     maxRelationships?: number,
-  ) {
+  ): MapSet<Neo4jDependencyRelationship> {
     let depCounts: Map<string, number>;
     if (outgoing) {
       const outgoingDeps = this.dependencies.filter((d) => d.startNode.inSelection);
@@ -180,13 +182,35 @@ export default class ProcessingService {
       }, new Map<string, number>());
     }
 
-    this.dependencies = this.dependencies.filter((d) => {
+    return this.dependencies.filter((d) => {
       const count = depCounts.get(d.startNode.elementId);
-      if (!count) return true;
-      if (minRelationships != null && count < minRelationships) return false;
-      if (maxRelationships != null && count > maxRelationships) return false;
-      return true;
+      if (!count) return false;
+      if (minRelationships != null && count < minRelationships) return true;
+      return maxRelationships != null && count > maxRelationships;
     });
+  }
+
+  /**
+   * Apply the min/max relationship filter by removing edges that are incoming/outgoing
+   * to a node that violates the minimum/maximum.
+   * @param outgoingRange
+   * @param incomingRange
+   */
+  private applyMinMaxRelationshipsFilter(
+    outgoingRange?: Partial<Range>,
+    incomingRange?: Partial<Range>,
+  ) {
+    // Find which edges to remove for the two optional ranges
+    const toRemoveOutgoing = outgoingRange
+      ? this.findMinMaxRelationshipsFilterViolations(true, outgoingRange?.min, outgoingRange?.max)
+      : new MapSet();
+    const toRemoveIncoming = incomingRange
+      ? this.findMinMaxRelationshipsFilterViolations(false, incomingRange?.min, incomingRange?.max)
+      : new MapSet();
+
+    const toRemove = toRemoveOutgoing.concat(toRemoveIncoming);
+    // Do not keep any edges that have to be removed according to the min/max relationships filters
+    this.dependencies = this.dependencies.filter((d) => !toRemove.has(d.elementId));
   }
 
   /**
@@ -232,9 +256,12 @@ export default class ProcessingService {
       outgoingRange, incomingRange, selfEdges,
     } = options;
 
-    // Count how many relationships each child of the selected node has
-    this.applyMinMaxRelationshipsFilter(true, outgoingRange?.min, outgoingRange?.max);
-    this.applyMinMaxRelationshipsFilter(false, incomingRange?.min, incomingRange?.max);
+    // Filter self-edges before applying any other filters
+    if (selfEdges === false) {
+      this.filterSelfEdges();
+    }
+
+    this.applyMinMaxRelationshipsFilter(outgoingRange, incomingRange);
 
     // Give two edges with the same source/target
     this.giveDuplicateLiftedEdgesSameElementId();
@@ -247,10 +274,6 @@ export default class ProcessingService {
     await violationService.destroy();
 
     this.mergeDuplicateLiftedEdges();
-
-    if (selfEdges === false) {
-      this.filterSelfEdges();
-    }
 
     const nodes = this.getAllNodes();
     const edges = this.getAllEdges();
