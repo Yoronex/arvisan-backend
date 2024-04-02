@@ -20,16 +20,28 @@ export interface BaseQueryOptions {
 
 export interface QueryOptions extends BaseQueryOptions {
   dependencyLength: number,
+
+  /** Query relationships that are contained within the selection */
   showSelectedInternalRelations?: boolean,
+  /** Query relationships that are contained within the selection's domain */
   showDomainInternalRelations?: boolean,
+  /** Query relationships that are not contained within the selection's domain */
   showExternalRelations?: boolean,
+
+  /** Whether to include applications that existing in the unclassified domain. True by default */
+  includeUnclassifiedApplications?: boolean;
+
+  /** Query outgoing relationships from the starting point */
   showOutgoing?: boolean,
+  /** Query incoming relationships from the starting point */
   showIncoming?: boolean,
   outgoingRangeMin?: number,
   outgoingRangeMax?: number,
   incomingRangeMin?: number,
   incomingRangeMax?: number,
+  /** Return relationships that (after lifting) depend on itself */
   selfEdges?: boolean,
+
   showWeakDependencies?: boolean;
   showStrongDependencies?: boolean;
   showEntityDependencies?: boolean;
@@ -63,11 +75,17 @@ export default class VisualizationService {
   public async getGraphFromSelectedNode(id: string, {
     layerDepth, dependencyLength,
     showExternalRelations, showDomainInternalRelations, showSelectedInternalRelations,
+    includeUnclassifiedApplications,
     showOutgoing, showIncoming, selfEdges,
     outgoingRangeMin, outgoingRangeMax, incomingRangeMin, incomingRangeMax,
     showWeakDependencies, showStrongDependencies, showEntityDependencies,
   }: QueryOptions): Promise<IntermediateGraphWithViolations> {
     const addParentsFilter = (query: string) => {
+      if (showSelectedInternalRelations && showDomainInternalRelations
+        && showExternalRelations) {
+        return query;
+      }
+
       let q = `${query}`;
 
       // Always return the leaf nodes of the given selection, because we need to context of the
@@ -121,10 +139,15 @@ export default class VisualizationService {
             MATCH (selectedNode)<-[:CONTAINS*0..4]-(selectedDomain:Domain)
             // Get the layers, application and domain of all dependencies
             MATCH (dependency)<-[r3:CONTAINS*0..4]-(parent)
+            MATCH (parent)<-[:CONTAINS*0..4]-(parentDomain:Domain)
             WHERE true `;
 
       query = addParentsFilter(query);
       query = addDependencyTypeFilter(query);
+
+      if (includeUnclassifiedApplications === false) {
+        query += `AND parentDomain.simpleName <> '${process.env.UNCATEGORIZED_DOMAIN_NODE_NAME ?? 'no_domain'}' `;
+      }
 
       if (outgoing) {
         query += 'RETURN DISTINCT selectedNode as source, r1 + r2 + reverse(r3) as path, parent as target';
