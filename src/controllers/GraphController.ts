@@ -6,6 +6,7 @@ import VisualizationService, { BaseQueryOptions, QueryOptions } from '../service
 import { GraphWithViolations } from '../entities/Graph';
 import ElementParserService from '../services/processing/ElementParserService';
 import BreadcrumbService from '../services/BreadcrumbService';
+import { Breadcrumb } from '../entities/Breadcrumb';
 
 interface ErrorResponse {
   message: string;
@@ -60,9 +61,10 @@ export class GraphController extends Controller {
   @Response<ErrorResponse>(400, 'Invalid query')
   public async getBreadcrumbOptions(
     id: string,
-    @Queries() { layerDepth }: BaseQueryOptions,
+    @Queries() params: BaseQueryOptions,
     @Res() errorResponse: TsoaResponse<400, ErrorResponse>,
-  ) {
+  ): Promise<Breadcrumb[]> {
+    const { layerDepth } = params;
     try {
       return await new BreadcrumbService().getBreadcrumbsFromSelectedNode(id, layerDepth);
     } catch (e: any) {
