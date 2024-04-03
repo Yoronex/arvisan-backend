@@ -1,5 +1,6 @@
 import { Integer } from 'neo4j-driver';
 import {
+  DependencyType,
   INeo4jComponentRelationship,
   INeo4jRelationshipProperties,
 } from '../database/entities';
@@ -65,10 +66,10 @@ export class Neo4jDependencyRelationship implements INeo4jComponentRelationship 
     this.properties = dep.properties;
     this.edgeProperties = {
       referenceKeys: [],
-      referenceTypes: [dep.properties.referenceType],
+      referenceTypes: dep.properties.referenceTypes?.split('|') ?? [],
       referenceNames: dep.properties.referenceNames?.split('|') ?? [],
-      dependencyTypes: dep.properties.dependencyType
-        ? [dep.properties.dependencyType] : [],
+      dependencyTypes: dep.properties.dependencyTypes
+        ? dep.properties.dependencyTypes.split('|') as DependencyType[] : [],
       nrModuleDependencies: 1,
       nrFunctionDependencies: Number(dep.properties.nrDependencies) || 1,
       weight: Number(dep.properties.nrDependencies) || 1,
