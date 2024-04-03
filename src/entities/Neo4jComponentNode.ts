@@ -85,8 +85,8 @@ export default class Neo4jComponentNode implements INeo4jComponentNode {
    * 0 if no children should be selected. Undefined if no limit
    */
   getChildren(depth?: number): Neo4jComponentNode[] {
-    if (depth !== undefined && depth < 0) return [];
-    if (this.children.length === 0) return [];
+    if (depth !== undefined && depth <= 0) return [this];
+    if (this.children.length === 0) return [this];
     const allChildren = this.children
       .reduce((children: Neo4jComponentNode[], child) => children.concat(
         child.getChildren(depth ? depth - 1 : undefined),
