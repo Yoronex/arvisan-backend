@@ -214,7 +214,7 @@ export default class VisualizationService {
       WITH parents + children as x
       UNWIND x as b
       WITH b as a
-      WHERE a.fullName CONTAINS '${partialName}'`;
+      WHERE toLower(a.fullName) CONTAINS '${partialName.toLowerCase()}'`;
     const results = await this.client.executeQuery<{ node: INeo4jComponentNode }>(`${query} RETURN DISTINCT a as node LIMIT 100`);
     const countRecord = await this.client.executeQuery<{ count: number }>(`${query} RETURN count(DISTINCT a) as count`);
 
