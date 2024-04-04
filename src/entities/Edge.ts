@@ -10,24 +10,19 @@ export interface EdgeViolations {
   dependencyCycle: boolean;
 }
 
-export interface EdgeDataProperties {
-  /**
-   * Edge reference key (from OutSystems)
-   * @deprecated information is irrelevant for end user
-   */
-  referenceKeys: string[];
-  /**
-   * Weight of the edge
-   * @deprecated Edge weight. The number of dependencies received their own attribute.
-   */
-  weight: number;
-  /** Whether this edge is some architectural violation */
-  violations: EdgeViolations & { any: boolean };
-  /** Names of the actual references in OutSystems */
-  referenceNames: string[];
+export interface EdgeReferences {
   /** Type of reference used within OutSystems
    * (e.g. Action, Entity, Integration, WebBlock, etc.)  */
-  referenceTypes: string[];
+  type: string;
+  /** Names of the actual references in OutSystems */
+  names: string[],
+}
+
+export interface EdgeDataProperties {
+  /** Whether this edge is some architectural violation */
+  violations: EdgeViolations & { any: boolean };
+  /** Actual references in OutSystems */
+  references: EdgeReferences[];
   /** Type of dependency */
   dependencyTypes: DependencyType[];
   /** How many module-level dependencies exist within the source and target node */

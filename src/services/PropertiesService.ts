@@ -35,13 +35,13 @@ export default class PropertiesService {
       ...node.data,
       nrOutgoingDependencies: edges
         .filter((e) => e.data.source === node.data.id && e.data.target !== node.data.id)
-        .reduce((total, e) => total + e.data.properties.weight, 0),
+        .reduce((total, e) => total + e.data.properties.nrFunctionDependencies, 0),
       nrIncomingDependencies: edges
         .filter((e) => e.data.source !== node.data.id && e.data.target === node.data.id)
-        .reduce((total, e) => total + e.data.properties.weight, 0),
+        .reduce((total, e) => total + e.data.properties.nrFunctionDependencies, 0),
       nrInternalDependencies: edges
         .filter((e) => e.data.source === node.data.id && e.data.target === node.data.id)
-        .reduce((total, e) => total + e.data.properties.weight, 0),
+        .reduce((total, e) => total + e.data.properties.nrFunctionDependencies, 0),
     }));
   }
 

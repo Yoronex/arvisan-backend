@@ -64,15 +64,13 @@ export class Neo4jDependencyRelationship implements INeo4jComponentRelationship 
     this.endNodeElementId = dep.endNodeElementId;
     this.type = dep.type;
     this.properties = dep.properties;
+    const references: Record<string, string[]> = JSON.parse(dep.properties.references);
     this.edgeProperties = {
-      referenceKeys: [],
-      referenceTypes: dep.properties.referenceTypes?.split('|') ?? [],
-      referenceNames: dep.properties.referenceNames?.split('|') ?? [],
+      references: Object.entries(references).map(([type, names]) => ({ type, names })),
       dependencyTypes: dep.properties.dependencyTypes
         ? dep.properties.dependencyTypes.split('|') as DependencyType[] : [],
       nrModuleDependencies: 1,
       nrFunctionDependencies: Number(dep.properties.nrDependencies) || 1,
-      weight: Number(dep.properties.nrDependencies) || 1,
       nrCalls: Number(dep.properties.nrCalls) || undefined,
     };
     this.identity = dep.identity;
@@ -138,17 +136,18 @@ export class Neo4jDependencyRelationship implements INeo4jComponentRelationship 
    * @param edgeProperties
    */
   mergeProperties(edgeProperties: Omit<EdgeDataProperties, 'violations'>) {
-    this.edgeProperties.weight += edgeProperties.weight;
     this.edgeProperties.nrModuleDependencies += edgeProperties.nrModuleDependencies;
     this.edgeProperties.nrFunctionDependencies += edgeProperties.nrFunctionDependencies;
 
     this.edgeProperties.dependencyTypes = this.edgeProperties.dependencyTypes
       .concat(...edgeProperties.dependencyTypes);
-    this.edgeProperties.referenceKeys = this.edgeProperties.referenceKeys
-      .concat(...edgeProperties.referenceKeys);
-    this.edgeProperties.referenceTypes = this.edgeProperties.referenceTypes
-      .concat(edgeProperties.referenceTypes);
-    this.edgeProperties.referenceNames = this.edgeProperties.referenceNames
-      .concat(...edgeProperties.referenceNames);
+    edgeProperties.references.forEach(({ type, names }) => {
+      const index = this.edgeProperties.references.findIndex((r) => r.type === type);
+      if (index < 0) {
+        this.edgeProperties.references.push({ type, names });
+      } else {
+        this.edgeProperties.references[index].names.push(...names);
+      }
+    });
   }
 }

@@ -131,12 +131,6 @@ export default class ProcessingService {
     }, new MapSet<Neo4jDependencyRelationship>());
     this.dependencies.forEach((d) => {
       // eslint-disable-next-line no-param-reassign
-      d.edgeProperties.referenceKeys = d.edgeProperties.referenceKeys.filter(filterDuplicates);
-      // eslint-disable-next-line no-param-reassign
-      d.edgeProperties.referenceTypes = d.edgeProperties.referenceTypes.filter(filterDuplicates);
-      // eslint-disable-next-line no-param-reassign
-      d.edgeProperties.referenceNames = d.edgeProperties.referenceNames.filter(filterDuplicates);
-      // eslint-disable-next-line no-param-reassign
       d.edgeProperties.dependencyTypes = d.edgeProperties.dependencyTypes
         .filter(filterDuplicates);
       return d;

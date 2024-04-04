@@ -34,9 +34,8 @@ export type INeo4jNodeProperties = {
 export type INeo4jComponentNode = Neo4jNode<Integer, INeo4jNodeProperties>;
 
 export type INeo4jRelationshipProperties = {
-  referenceTypes: string;
+  references: string;
   dependencyTypes?: string;
-  referenceNames: string;
   nrDependencies?: number;
   nrCalls?: number;
 };
