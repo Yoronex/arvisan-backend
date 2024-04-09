@@ -1,10 +1,7 @@
 import { Record } from 'neo4j-driver';
 import { Neo4jClient } from '../database/Neo4jClient';
 import ProcessingService from './processing/ProcessingService';
-import {
-  DependencyType, INeo4jComponentNode,
-  INeo4jComponentPath,
-} from '../database/entities';
+import { DependencyType, INeo4jComponentNode, INeo4jComponentPath } from '../database/entities';
 import PostProcessingService from './processing/PostProcessingService';
 import { IntermediateGraphWithViolations } from '../entities/Graph';
 import PreProcessingService from './processing/PreProcessingService';
@@ -111,22 +108,19 @@ export default class VisualizationService {
       const showAllDependencies = !!showRuntimeDependencies
         && !!showCompileTimeDependencies && !!showEntityDependencies;
 
+      // If we want to see all dependencies, there's no reason to apply a filter
+      // other than to increase execution time.
       if (showAllDependencies) return query;
       let q = `${query}`;
 
-      q += 'AND (false ';
+      const types: DependencyType[] = [];
+      if (showRuntimeDependencies) types.push(DependencyType.RUNTIME);
+      if (showCompileTimeDependencies) types.push(DependencyType.COMPILE_TIME);
+      if (showEntityDependencies) types.push(DependencyType.ENTITY);
 
-      if (!showAllDependencies && showRuntimeDependencies) {
-        q += `OR all(rel in r2 WHERE rel.dependencyType = '${DependencyType.RUNTIME}') `;
-      }
-      if (!showAllDependencies && showCompileTimeDependencies) {
-        q += `OR all(rel in r2 WHERE rel.dependencyType = '${DependencyType.COMPILE_TIME}') `;
-      }
-      if (!showAllDependencies && showEntityDependencies) {
-        q += `OR all(rel in r2 WHERE rel.dependencyType = '${DependencyType.ENTITY}') `;
-      }
-
-      q += ') ';
+      // All relationships in the path should be of at least one (any) of the requested types
+      const typesArray = types.map((t) => `'${t}'`).join(', ');
+      q += `AND all(rel in r2 WHERE any(type in [${typesArray}] WHERE rel.dependencyTypes CONTAINS type)) `;
 
       return q;
     };
@@ -149,6 +143,8 @@ export default class VisualizationService {
         query += `AND parentDomain.simpleName <> '${process.env.UNCATEGORIZED_DOMAIN_NODE_NAME ?? 'no_domain'}' `;
       }
 
+      // Make sure paths are always of the same structure (down from source, then dependencies, then
+      // down from target) to be able to process them the same way
       if (outgoing) {
         query += 'RETURN DISTINCT selectedNode as source, r1 + r2 + reverse(r3) as path, parent as target';
       } else {
