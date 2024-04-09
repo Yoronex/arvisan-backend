@@ -47,6 +47,17 @@ export default class ViolationCyclicalDependenciesService {
 
   public async getDependencyCycles(elementIds?: string[]): Promise<DependencyCycle[]> {
     const whereClause = elementIds ? `WHERE elementId(n) IN [${elementIds.join(',')}]` : '';
+    /**
+     * Neo4j procedure to find all cycles with the given set of nodes as a starting point.
+     * Internally, this procedure simply loops over all these nodes and finds their relationships.
+     * Then, for every relationship it checks whether there exists a path from the end node to
+     * the start node. This is done using a Neo4j-internal method, probably BFS.
+     *
+     * Source:
+     * https://github.com/neo4j/apoc/blob/0e8e8a6644fedd0665ac89321a40381a2c262b15/core/src/main/java/apoc/nodes/Nodes.java#L125
+     * https://neo4j.com/docs/cypher-manual/current/appendix/tutorials/shortestpath-planning/
+     * https://github.com/neo4j/neo4j/blob/b76dd4f846db9ba411e531d3e5c458614162c7ba/community/graph-algo/src/main/java/org/neo4j/graphalgo/impl/path/ShortestPath.java#L209
+     */
     const query = `
       MATCH (n ${whereClause})
       WITH collect(n) as nodes
