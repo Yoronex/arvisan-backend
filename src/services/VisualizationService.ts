@@ -139,10 +139,6 @@ export default class VisualizationService {
       query = addParentsFilter(query);
       query = addDependencyTypeFilter(query);
 
-      if (includeUnclassifiedApplications === false) {
-        query += `AND parentDomain.simpleName <> '${process.env.UNCATEGORIZED_DOMAIN_NODE_NAME ?? 'no_domain'}' `;
-      }
-
       // Make sure paths are always of the same structure (down from source, then dependencies, then
       // down from target) to be able to process them the same way
       if (outgoing) {
@@ -159,17 +155,17 @@ export default class VisualizationService {
     ]);
     const { graph: treeGraph } = new PostProcessingService(...graphs.map((g) => g.graph));
 
-    const neo4jRecords: Record<INeo4jComponentPath>[] = [];
+    let neo4jRecords: Record<INeo4jComponentPath>[] = [];
 
     if (showOutgoing) {
       const records = await this.client
         .executeQuery<INeo4jComponentPath>(buildQuery(true));
-      neo4jRecords.push(...records);
+      neo4jRecords = neo4jRecords.concat(records);
     }
     if (showIncoming) {
       const records = await this.client
         .executeQuery<INeo4jComponentPath>(buildQuery(false));
-      neo4jRecords.push(...records);
+      neo4jRecords = neo4jRecords.concat(records);
     }
     if (!showIncoming && !showOutgoing) {
       const records = await this.client
@@ -177,7 +173,15 @@ export default class VisualizationService {
       neo4jRecords.push(...records);
     }
 
-    const preprocessor = new PreProcessingService(neo4jRecords, id, treeGraph);
+    const topLevelNodes = includeUnclassifiedApplications === false ? [process.env.UNCATEGORIZED_DOMAIN_NODE_NAME ?? 'no_domain'] : [];
+
+    const preprocessor = new PreProcessingService(
+      neo4jRecords,
+      id,
+      treeGraph,
+      undefined,
+      topLevelNodes,
+    );
     const processor = new ProcessingService(preprocessor, layerDepth);
 
     const {

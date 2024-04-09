@@ -80,6 +80,14 @@ export default class Neo4jComponentNode implements INeo4jComponentNode {
   }
 
   /**
+   * Get the top-level parent of this node. Returns itself if it is already top-level
+   */
+  getTopLevelParent(): Neo4jComponentNode {
+    const parents = this.getParents();
+    return parents[parents.length - 1];
+  }
+
+  /**
    * Get a list of all children of this node, including itself, ordered from highest to lowest level
    * @param depth Max depth from the parent node.
    * 0 if no children should be selected. Undefined if no limit

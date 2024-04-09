@@ -19,12 +19,15 @@ export default class PreProcessingService {
    * i.e. when nodes or edges are missing from the given records.
    * @param selectedDomain Whether the starting point of the selection is one or more domains.
    * Overridden by selectedId, if it exists.
+   * @param excludedDomains List of top level nodes' names that are not allowed in
+   * the returned graph
    */
   constructor(
     records: Record<INeo4jComponentPath>[],
     public readonly selectedId?: string,
     public readonly context?: IntermediateGraph,
     selectedDomain: boolean = true,
+    excludedDomains: string[] = [],
   ) {
     const allContainRelationships: Neo4jRelationshipMappings = {
       sourceToTargets: new Map(),
@@ -56,6 +59,7 @@ export default class PreProcessingService {
       this.selectedNode ? this.selectedNode.layer === 'Domain' : selectedDomain,
     );
     this.records = this.onlyKeepLongestPaths(chunkRecords);
+    this.records = this.excludeDomains(excludedDomains);
   }
 
   /**
@@ -175,5 +179,24 @@ export default class PreProcessingService {
 
         return record.targetDepth === depth;
       });
+  }
+
+  /*
+   * Remove all paths that have at least one node in the path in one of the given domains.
+   * This unfortunately cannot easily be done using a Cypher query, because this would
+   * only exclude all paths that have one of excluded domains as end (target) node.
+   */
+  private excludeDomains(domains: string[]) {
+    if (domains.length === 0) return this.records;
+
+    return this.records.filter((records) => {
+      const domainsInPath = records.dependencyEdges.map((d) => [
+        d.endNode.getTopLevelParent(),
+        d.startNode.getTopLevelParent(),
+      ]).flat()
+        .map((d) => d.properties.fullName)
+        .filter(filterDuplicates);
+      return domainsInPath.every((d) => !domains.includes(d));
+    });
   }
 }
