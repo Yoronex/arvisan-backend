@@ -50,13 +50,13 @@ export default class ProcessingService {
 
     // Store individual dependency relationships. Each edge has their parents and a unique ID.
     // Automatically filters duplicate edges that lie on different paths (by design)
-    this.dependencies = MapSet.from(
+    this.dependencies = MapSet.fromArray(
       (d) => d.elementId,
-      ...records.map((r) => r.dependencyEdges).flat(),
+      records.map((r) => r.dependencyEdges).flat(),
     );
-    this.selectedTreeNodes = MapSet.from(
+    this.selectedTreeNodes = MapSet.fromArray(
       (n) => n.elementId,
-      ...records.map((r) => r.startNodes.concat(r.endNodes)).flat(),
+      records.map((r) => r.startNodes.concat(r.endNodes)).flat(),
     );
   }
 

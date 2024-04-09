@@ -155,23 +155,20 @@ export default class VisualizationService {
     ]);
     const { graph: treeGraph } = new PostProcessingService(...graphs.map((g) => g.graph));
 
-    let neo4jRecords: Record<INeo4jComponentPath>[] = [];
-
+    const promises: Promise<typeof neo4jRecords>[] = [];
     if (showOutgoing) {
-      const records = await this.client
-        .executeQuery<INeo4jComponentPath>(buildQuery(true));
-      neo4jRecords = neo4jRecords.concat(records);
+      promises.push(this.client.executeQuery<INeo4jComponentPath>(buildQuery(true)));
     }
     if (showIncoming) {
-      const records = await this.client
-        .executeQuery<INeo4jComponentPath>(buildQuery(false));
-      neo4jRecords = neo4jRecords.concat(records);
+      promises.push(this.client.executeQuery<INeo4jComponentPath>(buildQuery(false)));
     }
     if (!showIncoming && !showOutgoing) {
-      const records = await this.client
-        .executeQuery<INeo4jComponentPath>(buildQuery(false, 0));
-      neo4jRecords.push(...records);
+      promises.push(this.client.executeQuery<INeo4jComponentPath>(buildQuery(false, 0)));
     }
+    const records = await Promise.all(promises);
+
+    let neo4jRecords: Record<INeo4jComponentPath>[] = [];
+    records.forEach((r) => { neo4jRecords = neo4jRecords.concat(r); });
 
     const topLevelNodes = includeUnclassifiedApplications === false ? [process.env.UNCATEGORIZED_DOMAIN_NODE_NAME ?? 'no_domain'] : [];
 

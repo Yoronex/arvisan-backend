@@ -27,9 +27,9 @@ export class MapSet<T extends object> extends Map<string, T> {
    * @param getKey Given a value, return its key
    * @param elements
    */
-  static from<T extends object>(
+  static fromArray<T extends object>(
     getKey: (t: T) => string,
-    ...elements: T[]
+    elements: T[],
   ): MapSet<T> {
     const set = new MapSet<T>();
     elements.forEach((element) => {
@@ -37,6 +37,18 @@ export class MapSet<T extends object> extends Map<string, T> {
       set.set(key, element);
     });
     return set;
+  }
+
+  /**
+   * Create a MapSet from a list of elements
+   * @param getKey Given a value, return its key
+   * @param elements
+   */
+  static from<T extends object>(
+    getKey: (t: T) => string,
+    ...elements: T[]
+  ): MapSet<T> {
+    return this.fromArray(getKey, elements);
   }
 
   /**
