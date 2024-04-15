@@ -19,8 +19,6 @@ export interface NodeData {
     layer: string,
     /** Hex color this node should be */
     color: string,
-    /** Node layer depth */
-    depth: number,
     /** Whether this node is selected or not */
     selected: 'true' | 'false',
 

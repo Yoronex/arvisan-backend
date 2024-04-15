@@ -15,7 +15,6 @@ export enum DependencyType {
 
 export type INeo4jNodeProperties = {
   color: string;
-  depth: number;
   id: string;
   simpleName: string;
   fullName: string;
