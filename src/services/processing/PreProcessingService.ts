@@ -191,8 +191,8 @@ export default class PreProcessingService {
 
     return this.records.filter((records) => {
       const domainsInPath = records.dependencyEdges.map((d) => [
-        d.endNode.getTopLevelParent(),
-        d.startNode.getTopLevelParent(),
+        d.endNode.getRootAncestor(),
+        d.startNode.getRootAncestor(),
       ]).flat()
         .map((d) => d.properties.fullName)
         .filter(filterDuplicates);

@@ -217,8 +217,8 @@ export default class ProcessingService {
     const nodesOnPaths: string[] = edges
       // Get the source and target from each edge (and their parents)
       .map((e): string[] => {
-        const sourceParents = e.startNode.getParents();
-        const targetParents = e.endNode.getParents();
+        const sourceParents = e.startNode.getAncestors();
+        const targetParents = e.endNode.getAncestors();
         return sourceParents.concat(targetParents).map((n) => n.elementId);
       })
       // Flatten the 2D array

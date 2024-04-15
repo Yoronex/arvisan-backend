@@ -81,7 +81,7 @@ export default class ElementParserService {
         nrPublicElements: node.properties.nrPublicElements,
         nrRESTConsumers: node.properties.nrRESTConsumers,
         nrRESTProducers: node.properties.nrRESTProducers,
-        nrLeaves: 'getLeafChildren' in node ? node.getLeafChildren().length : undefined,
+        nrLeaves: 'getLeafChildren' in node ? node.getLeafDescendants().length : undefined,
       },
     };
   }

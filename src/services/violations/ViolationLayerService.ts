@@ -55,9 +55,9 @@ export class ViolationLayerService {
       && v.toSublayer === targetLayerName)) return false;
     if (!sourceLayer || !targetLayer) return false;
 
-    const sourceParents = sourceLayer.getParents();
+    const sourceParents = sourceLayer.getAncestors();
     const sourceTop = sourceParents[sourceParents.length - 1];
-    const targetParents = targetLayer.getParents();
+    const targetParents = targetLayer.getAncestors();
     const targetTop = targetParents[targetParents.length - 1];
     // Layer violations need to be in the same domain (top level node)
     return sourceTop.elementId === targetTop.elementId;
@@ -69,8 +69,8 @@ export class ViolationLayerService {
     await this.getLayerViolationSpecs();
 
     this.violatingRelationships = dependencies.filter((e) => {
-      const startSublayer = e.originalStartNode.getLayerNode('Sublayer');
-      const endSublayer = e.originalEndNode.getLayerNode('Sublayer');
+      const startSublayer = e.originalStartNode.getLayerAncestor('Sublayer');
+      const endSublayer = e.originalEndNode.getLayerAncestor('Sublayer');
       const isViolation = this.isLayerViolation(startSublayer, endSublayer);
       if (isViolation) {
         e.violations.subLayer = true;

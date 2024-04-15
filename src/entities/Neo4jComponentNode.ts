@@ -63,7 +63,7 @@ export default class Neo4jComponentNode implements INeo4jComponentNode {
    * @param selectedId
    */
   markIfInSelection(selectedId: string): void {
-    const parentIds = this.getParents().map((p) => p.elementId);
+    const parentIds = this.getAncestors().map((p) => p.elementId);
     if (parentIds.includes(selectedId)) {
       this.inSelection = true;
     }
@@ -72,9 +72,9 @@ export default class Neo4jComponentNode implements INeo4jComponentNode {
   /**
    * Get a list of all parents of this node, including itself, ordered from lowest to highest level
    */
-  getParents(): Neo4jComponentNode[] {
+  getAncestors(): Neo4jComponentNode[] {
     if (this.parent) {
-      return [this, ...this.parent.getParents()];
+      return [this, ...this.parent.getAncestors()];
     }
     return [this];
   }
@@ -82,8 +82,8 @@ export default class Neo4jComponentNode implements INeo4jComponentNode {
   /**
    * Get the top-level parent of this node. Returns itself if it is already top-level
    */
-  getTopLevelParent(): Neo4jComponentNode {
-    const parents = this.getParents();
+  getRootAncestor(): Neo4jComponentNode {
+    const parents = this.getAncestors();
     return parents[parents.length - 1];
   }
 
@@ -92,12 +92,12 @@ export default class Neo4jComponentNode implements INeo4jComponentNode {
    * @param depth Max depth from the parent node.
    * 0 if no children should be selected. Undefined if no limit
    */
-  getChildren(depth?: number): Neo4jComponentNode[] {
+  getDescendants(depth?: number): Neo4jComponentNode[] {
     if (depth !== undefined && depth <= 0) return [this];
     if (this.children.length === 0) return [this];
     const allChildren = this.children
       .reduce((children: Neo4jComponentNode[], child) => children.concat(
-        child.getChildren(depth ? depth - 1 : undefined),
+        child.getDescendants(depth ? depth - 1 : undefined),
       ), []);
     return [this as Neo4jComponentNode].concat(allChildren);
   }
@@ -107,14 +107,14 @@ export default class Neo4jComponentNode implements INeo4jComponentNode {
    * Undefined if it does not exist, i.e. when the node is in a lower layer.
    * @param layerName
    */
-  getLayerNode(layerName: string) {
-    return this.getParents().find((p) => p.labels.includes(layerName));
+  getLayerAncestor(layerName: string) {
+    return this.getAncestors().find((p) => p.labels.includes(layerName));
   }
 
   /**
    * Get a list of all children of this node that do not have children themselves
    */
-  getLeafChildren(): Neo4jComponentNode[] {
-    return this.getChildren().filter((n) => n.children.length === 0);
+  getLeafDescendants(): Neo4jComponentNode[] {
+    return this.getDescendants().filter((n) => n.children.length === 0);
   }
 }

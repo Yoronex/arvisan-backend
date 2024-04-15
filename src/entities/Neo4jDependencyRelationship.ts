@@ -82,7 +82,7 @@ export class Neo4jDependencyRelationship implements INeo4jComponentRelationship 
     if (startNode == null) {
       throw new Error(`Start node (ID ${dep.startNodeElementId}) for edge ${this.elementId} not found!`);
     }
-    Neo4jDependencyRelationship.validateParentDepth(startNode.getParents().length);
+    Neo4jDependencyRelationship.validateParentDepth(startNode.getAncestors().length);
     this.startNode = startNode;
     this.originalStartNode = startNode;
 
@@ -90,7 +90,7 @@ export class Neo4jDependencyRelationship implements INeo4jComponentRelationship 
     if (endNode == null) {
       throw new Error(`End node (ID ${dep.endNodeElementId}) for edge ${this.elementId} not found!`);
     }
-    Neo4jDependencyRelationship.validateParentDepth(endNode.getParents().length);
+    Neo4jDependencyRelationship.validateParentDepth(endNode.getAncestors().length);
     this.endNode = endNode;
     this.originalEndNode = endNode;
   }
@@ -116,8 +116,8 @@ export class Neo4jDependencyRelationship implements INeo4jComponentRelationship 
   liftRelationship(levels: number) {
     if (levels <= 0) return;
 
-    const sourceParents = this.originalStartNode.getParents();
-    const targetParents = this.originalEndNode.getParents();
+    const sourceParents = this.originalStartNode.getAncestors();
+    const targetParents = this.originalEndNode.getAncestors();
     if (levels >= sourceParents.length || levels >= targetParents.length) {
       throw new Error(`Try to lift dependency ${this.elementId} levels, but relationship is only ${Math.min(sourceParents.length, targetParents.length)} deep.`);
     }

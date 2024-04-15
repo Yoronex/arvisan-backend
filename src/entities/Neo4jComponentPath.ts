@@ -115,7 +115,7 @@ export class Neo4jComponentPath {
       if (startNode == null) {
         throw new Error(`Start node (ID ${startNodeId}) not found!`);
       }
-      this.startNodes = startNode.getParents();
+      this.startNodes = startNode.getAncestors();
 
       const endNodeId = this
         .containTargetEdges[this.containTargetEdges.length - 1]?.endNodeElementId
@@ -125,7 +125,7 @@ export class Neo4jComponentPath {
       if (endNode == null) {
         throw new Error(`End node (ID ${endNodeId}) not found!`);
       }
-      this.endNodes = endNode.getParents();
+      this.endNodes = endNode.getAncestors();
     }
 
     const finalSourceModuleId = this
