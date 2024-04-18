@@ -41,7 +41,7 @@ export default class ProcessingService {
     public readonly original: PreProcessingService,
     maxDepth?: number,
   ) {
-    let records;
+    let records: Neo4jComponentPath[];
     if (maxDepth !== undefined) {
       records = this.applyAbstraction(original.records, maxDepth);
     } else {
@@ -54,6 +54,20 @@ export default class ProcessingService {
       (d) => d.elementId,
       records.map((r) => r.dependencyEdges).flat(),
     );
+
+    // Give two edges with the same source/target the same element ID,
+    // which makes sure every source/target pair can be identified
+    // by the same ID. Necessary to correctly map violations
+    // to their lifted edges in the visualization
+    if (maxDepth !== undefined) {
+      // Only needed when we actually lift edges
+      this.giveDuplicateLiftedEdgesSameElementId();
+    }
+
+    // We cannot use the node list from the preprocessor, because we need the list of nodes
+    // after applying the abstraction above. The list of all nodes does still include these.
+    // We also cannot use the source/target nodes of all dependency relationships, because
+    // then we exclude nodes that do not have any dependencies.
     this.selectedTreeNodes = MapSet.fromArray(
       (n) => n.elementId,
       records.map((r) => r.startNodes.concat(r.endNodes)).flat(),
@@ -256,9 +270,6 @@ export default class ProcessingService {
     }
 
     this.applyMinMaxRelationshipsFilter(outgoingRange, incomingRange);
-
-    // Give two edges with the same source/target
-    this.giveDuplicateLiftedEdgesSameElementId();
 
     const violationService = new ViolationService();
     await violationService.getGraphViolations(

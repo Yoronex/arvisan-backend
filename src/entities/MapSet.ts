@@ -1,4 +1,6 @@
 export class MapSet<T extends object> extends Map<string, T> {
+  /* Mapping from original ID to new, lifted ID. Necessary to
+  correctly map violations from the database onto their visualization edges. */
   private originalIdMap: Map<string, string> = new Map();
 
   set(key: string, value: T): this {
