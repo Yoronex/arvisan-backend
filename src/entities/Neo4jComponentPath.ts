@@ -8,17 +8,17 @@ import { MapSet } from './MapSet';
 import Neo4jComponentNode from './Neo4jComponentNode';
 
 export class Neo4jComponentPath {
-  /** Start nodes of this path; From lowest level to highest level */
-  public startNodes: Neo4jComponentNode[];
+  /** Start node of the original path on the lowest level */
+  public startNode?: Neo4jComponentNode;
+
+  /** End node of the original path on the lowest level */
+  public endNode?: Neo4jComponentNode;
 
   public sourceDepth: number;
 
-  public dependencyEdges: Neo4jDependencyRelationship[];
-
   public targetDepth: number;
 
-  /** End nodes of this path; From lowest level to highest level */
-  public endNodes: Neo4jComponentNode[];
+  public dependencyEdges: Neo4jDependencyRelationship[];
 
   /**
    * Given a list of Neo4j relationships, split those relationships into a 2D list
@@ -110,8 +110,8 @@ export class Neo4jComponentPath {
 
     let startNodeId: string | undefined;
     if (record.get('path').length === 0) {
-      this.startNodes = [];
-      this.endNodes = [];
+      this.startNode = undefined;
+      this.endNode = undefined;
     } else {
       // There exists at least one relationship. If not in the containment array,
       // it can be in the dependency array or in the target containment array
@@ -122,7 +122,7 @@ export class Neo4jComponentPath {
       if (startNode == null) {
         throw new Error(`Start node (ID ${startNodeId}) not found!`);
       }
-      this.startNodes = startNode.getAncestors();
+      this.startNode = startNode;
 
       const endNodeId = containTargetEdges[containTargetEdges.length - 1]?.endNodeElementId
         ?? dependencyEdges[dependencyEdges.length - 1]?.endNode.elementId
@@ -131,8 +131,16 @@ export class Neo4jComponentPath {
       if (endNode == null) {
         throw new Error(`End node (ID ${endNodeId}) not found!`);
       }
-      this.endNodes = endNode.getAncestors();
+      this.endNode = endNode;
     }
+  }
+
+  public get startNodes() {
+    return this.startNode ? this.startNode.getAncestors() : [];
+  }
+
+  public get endNodes() {
+    return this.endNode ? this.endNode.getAncestors() : [];
   }
 
   /**
@@ -145,10 +153,13 @@ export class Neo4jComponentPath {
     if (currentDepth <= depth) return;
 
     const tooDeep = this.sourceDepth - depth;
+
     this.sourceDepth -= tooDeep;
-    this.startNodes.splice(0, tooDeep);
+    this.startNode = this.startNode?.getAncestors()[tooDeep];
+
     this.targetDepth -= tooDeep;
-    this.endNodes.splice(0, tooDeep);
+    this.endNode = this.endNode?.getAncestors()[tooDeep];
+
     this.dependencyEdges.forEach((e) => e.liftRelationship(tooDeep));
   }
 }
