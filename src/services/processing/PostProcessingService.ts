@@ -27,13 +27,11 @@ export default class PostProcessingService {
   private mergeGraphs(...graphs: IntermediateGraph[]): IntermediateGraph {
     const nodes = graphs.map((g) => g.nodes).flat();
     const edges = graphs.map((g) => g.edges).flat();
-    const graph = {
+    return {
       name: `Merged graph of '${graphs.map((g) => g.name).join(', ')}'`,
       nodes: new MapSet<Neo4jComponentNode>(...nodes),
       edges: new MapSet<Edge>(...edges),
     };
-    this.validateGraph(graph);
-    return graph;
   }
 
   /**
