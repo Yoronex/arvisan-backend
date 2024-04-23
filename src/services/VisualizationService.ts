@@ -169,13 +169,7 @@ export default class VisualizationService {
 
     const topLevelNodes = includeUnclassifiedApplications === false ? [process.env.UNCATEGORIZED_DOMAIN_NODE_NAME ?? 'no_domain'] : [];
 
-    const preprocessor = new PreProcessingService(
-      neo4jRecords,
-      id,
-      treeGraph,
-      undefined,
-      topLevelNodes,
-    );
+    const preprocessor = new PreProcessingService(neo4jRecords, id, treeGraph, topLevelNodes);
     const processor = new ProcessingService(preprocessor, layerDepth);
 
     const {

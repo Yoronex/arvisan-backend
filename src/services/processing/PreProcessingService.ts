@@ -17,8 +17,6 @@ export default class PreProcessingService {
    * @param selectedId ID of the selected node (to highlight it)
    * @param context Optional graph that can provide more context to the given records,
    * i.e. when nodes or edges are missing from the given records.
-   * @param selectedDomain Whether the starting point of the selection is one or more domains.
-   * Overridden by selectedId, if it exists.
    * @param excludedDomains List of top level nodes' names that are not allowed in
    * the returned graph
    */
@@ -26,7 +24,6 @@ export default class PreProcessingService {
     records: Record<INeo4jComponentPath>[],
     public readonly selectedId?: string,
     public readonly context?: IntermediateGraph,
-    selectedDomain: boolean = true,
     excludedDomains: string[] = [],
   ) {
     const allContainRelationships: Neo4jRelationshipMappings = {
@@ -56,7 +53,8 @@ export default class PreProcessingService {
 
     const chunkRecords = this.splitRelationshipsIntoChunks(
       records,
-      this.selectedNode ? this.selectedNode.layer === 'Domain' : selectedDomain,
+      // If we have not selected a node, we are querying a domain
+      this.selectedNode ? this.selectedNode.layer === 'Domain' : true,
     );
     this.records = this.onlyKeepLongestPaths(chunkRecords);
     this.records = this.excludeDomains(excludedDomains);

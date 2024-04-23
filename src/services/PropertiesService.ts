@@ -25,7 +25,7 @@ export default class PropertiesService {
   }
 
   private async formatDomains(records: Record<INeo4jComponentPath>[]): Promise<Domain[]> {
-    const preprocessor = new PreProcessingService(records, undefined, undefined, true);
+    const preprocessor = new PreProcessingService(records);
     const { graph } = await new ProcessingService(preprocessor, 0).formatToLPG('All domains', {
       selfEdges: true,
     });

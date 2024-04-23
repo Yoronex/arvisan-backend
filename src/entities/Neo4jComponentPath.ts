@@ -72,8 +72,10 @@ export class Neo4jComponentPath {
       const lastContainEdge = chunks[0][chunks[0].length - 1];
       const index = chunks[0].findIndex((e) => e.elementId === lastContainEdge.elementId);
       // The last CONTAIN edge in the chain exists only once, so we have no containment edges on
-      // the target side. Push an empty array either to the front or the back, depending on
-      // whether we selected a domain node or not.
+      // the target side. Push an empty array either to the front or the back. If we selected a
+      // domain, there are no target containment edges (so we push to the back) If we did not
+      // select a domain, then we have selected a leaf, so all containment edges belong to the
+      // target. We push an empty array to the front.
       if (index === chunks[0].length - 1 && selectedDomain) {
         chunks.push([]);
       } else if (index === chunks[0].length - 1) {
