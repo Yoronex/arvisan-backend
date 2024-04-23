@@ -139,13 +139,10 @@ export default class VisualizationService {
       query = addParentsFilter(query);
       query = addDependencyTypeFilter(query);
 
-      // Make sure paths are always of the same structure (down from source, then dependencies, then
-      // down from target) to be able to process them the same way
-      if (outgoing) {
-        query += 'RETURN DISTINCT selectedNode as source, r1 + r2 + reverse(r3) as path, parent as target';
-      } else {
-        query += 'RETURN DISTINCT parent as source, r1 + r2 + reverse(r3) as path, selectedNode as target';
-      }
+      // Make sure paths are always of the same structure:
+      // down from selected node, then dependencies (any direction), then down from target
+      // to be able to process them the same way
+      query += 'RETURN DISTINCT selectedNode as source, r1 + r2 + reverse(r3) as path, parent as target';
       return query;
     };
 

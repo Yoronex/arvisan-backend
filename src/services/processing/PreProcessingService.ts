@@ -153,32 +153,40 @@ export default class PreProcessingService {
   }
 
   /**
-   * Keep only the paths that go from selected node to the domain node of the relationship
+   * Keep only the paths that go from selected node to the domain node of the relationship,
+   * so a maximum number of target containment edges.
    * We have to delete any duplicates, because otherwise all these extra paths count towards
-   * the total number of relationship a leaf has.
+   * the total number of relationship a leaf has. It will also cause problems when trying to
+   * apply edge lifting further down the pipeline.
    * @param records
    */
   private onlyKeepLongestPaths(records: Neo4jComponentPath[]) {
     const seenPaths = new Map<string, number>();
     return records
       .map((record) => {
-        // String that will uniquely identify this dependency (sequence).
-        const pathId = record.dependencyEdges.flat().map((e) => e.elementId).join(',');
+        // String that will uniquely identify this dependency (path).
+        const { pathId } = record;
 
         let currDepth = 0;
         if (seenPaths.has(pathId)) {
           currDepth = seenPaths.get(pathId)!;
         }
 
+        // Find the maximum path length for each dependency path
         seenPaths.set(pathId, Math.max(currDepth, record.targetDepth));
 
         return record;
       }).filter((record) => {
-        const pathId = record.dependencyEdges.flat().map((e) => e.elementId).join(',');
+        const { pathId } = record;
         const depth = seenPaths.get(pathId) || 0;
 
+        // Only keep the paths that are of the maximum length
         return record.targetDepth === depth;
-      });
+      })
+      .filter((record1, i, all) => i === all
+      // Remove any duplicate paths, because a path can exist twice if we query both incoming
+      // and outgoing dependencies.
+        .findIndex((record2) => record1.pathId === record2.pathId));
   }
 
   /*

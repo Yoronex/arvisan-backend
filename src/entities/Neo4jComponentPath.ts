@@ -8,16 +8,23 @@ import { MapSet } from './MapSet';
 import Neo4jComponentNode from './Neo4jComponentNode';
 
 export class Neo4jComponentPath {
-  /** Start node of the original path on the lowest level */
+  /** ID uniquely identifying this dependency path */
+  public pathId: string;
+
+  /** Leaf-level descendant of the selected node */
   public startNode?: Neo4jComponentNode;
 
-  /** End node of the original path on the lowest level */
+  /** Leaf-level descendant of the target node (dependency) */
   public endNode?: Neo4jComponentNode;
 
   public sourceDepth: number;
 
   public targetDepth: number;
 
+  /**
+   * Dependency edges that make up this path.
+   * Can be empty, from startNode to endNode, or from endNode to startNode.
+   */
   public dependencyEdges: Neo4jDependencyRelationship[];
 
   /**
@@ -45,6 +52,9 @@ export class Neo4jComponentPath {
         dependencyEdges: [],
       };
     }
+
+    // Split the list of relationships into at least two subarrays, where the first and the last
+    // array are containment edges. The middle subarrays can be of any dependency type.
     const chunks = [[relationshipsToGroup[0]]];
     for (let i = 1; i < relationshipsToGroup.length; i += 1) {
       if (relationshipsToGroup[i].type === chunks[chunks.length - 1][0].type) {
@@ -55,12 +65,15 @@ export class Neo4jComponentPath {
     }
 
     // No dependency edges, only containment edges. However, these might go down and immediately
-    // go back up. Therefore, we need to find where to split this single array of CONTAIN edges
+    // go back down again, because on the selected node side we always go down to the leaf nodes,
+    // while for the target side we can have zero or more containment edges.
+    // Therefore, we need to find where to split this single array of CONTAIN edges.
     if (chunks.length === 1 && chunks[0][0]?.type.toUpperCase() === containEdgeName) {
       const lastContainEdge = chunks[0][chunks[0].length - 1];
       const index = chunks[0].findIndex((e) => e.elementId === lastContainEdge.elementId);
-      // The last CONTAIN edge in the chain exists only once, so we are not going down.
-      // Push an empty array.
+      // The last CONTAIN edge in the chain exists only once, so we have no containment edges on
+      // the target side. Push an empty array either to the front or the back, depending on
+      // whether we selected a domain node or not.
       if (index === chunks[0].length - 1 && selectedDomain) {
         chunks.push([]);
       } else if (index === chunks[0].length - 1) {
@@ -71,17 +84,21 @@ export class Neo4jComponentPath {
       }
     } else {
       // If we do not start with any CONTAIN edges, push an empty array to the front to indicate
-      // that we do not have such edges
+      // that we do not have such edges.
       if (chunks[0][0].type.toUpperCase() !== containEdgeName) chunks.unshift([]);
       // If we do not end with any CONTAIN edges, push an empty array to the back to indicate
-      // that we do not have such edges
+      // that we do not have such edges.
       if (chunks[chunks.length - 1][0]?.type.toUpperCase() !== containEdgeName
         || chunks.length === 1) chunks.push([]);
     }
 
     // eslint-disable-next-line prefer-destructuring
+    // First chunk is for the source side
     const containSourceEdges = chunks[0];
+    // Last chunk is for the target side
     const containTargetEdges = chunks[chunks.length - 1];
+    // Middle chunks contain dependency edges, so flatten this 2D array and create
+    // relationship objects for further processing later.
     const dependencyEdges = chunks.slice(1, chunks.length - 1).flat()
       .map((dep) => new Neo4jDependencyRelationship(
         dep,
@@ -95,6 +112,12 @@ export class Neo4jComponentPath {
     };
   }
 
+  /**
+   * Create a new dependency path object
+   * @param record
+   * @param nodes
+   * @param selectedDomain
+   */
   constructor(
     record: Record<INeo4jComponentPath>,
     nodes: MapSet<Neo4jComponentNode>,
@@ -133,6 +156,12 @@ export class Neo4jComponentPath {
       }
       this.endNode = endNode;
     }
+
+    // ID consists either of the chain of dependency edge IDs,
+    // or the leaf node if no dependency edges exist.
+    this.pathId = dependencyEdges.length > 0
+      ? dependencyEdges.map((e) => e.elementId).join(',')
+      : startNodeId ?? '';
   }
 
   public get startNodes() {
