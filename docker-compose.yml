@@ -1,4 +1,3 @@
-version: '3'
 services:
   frontend:
     build: ../arvisan-frontend
@@ -25,12 +24,13 @@ services:
   # Optional neo4j database instance. You can also use an instance installed on the host machine
   neo4j:
     image: neo4j:latest
+    # restart: 'no'
     restart: 'unless-stopped'
     networks:
       - arvisan
-    ports:
-      - 7474:7474
-      - 7687:7687
+    # ports:
+    #   - 7474:7474
+    #   - 7687:7687
     environment:
       - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD}
       - NEO4J_apoc_export_file_enabled=true
@@ -41,6 +41,8 @@ services:
       - neo4j_data:/data
       - neo4j_logs:/logs
       - neo4j_plugins:/plugins
+      - neo4j_import:/import
+    # entrypoint: ['bash', '-c', 'neo4j-admin database import full --overwrite-destination --nodes=/import/nodes.csv --relationships=/import/relationships.csv neo4j']
 
 volumes:
   neo4j_data:
@@ -48,6 +50,8 @@ volumes:
   neo4j_logs:
     driver: local
   neo4j_plugins:
+    driver: local
+  neo4j_import:
     driver: local
 
 networks:

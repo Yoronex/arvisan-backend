@@ -3,6 +3,12 @@
 This is the backend for the proof-of-concept architecture
 visualizer and analysis tool for the graduation project of Roy Kakkenberg.
 
+## How to deploy
+The easiest method for deployment is to use Docker Compose.
+You can either use a Neo4j database instance installed on the host machine (e.g. using Neo4j Desktop, see the requirements below)
+or use a Neo4j docker container. When using the latter, please see the [Github wiki page](https://github.com/Yoronex/arvisan-backend/wiki/Inserting-data-into-a-Neo4j-docker-container) explaining how to seed the data.
+If you do not wish to use the Neo4j docker container, don't forget to comment this service and its volumes.
+
 ## Requirements
 - NodeJS 20. Dependencies are installed with pnpm.
 - A Neo4j database (v5) with the APOC plugin installed. 
