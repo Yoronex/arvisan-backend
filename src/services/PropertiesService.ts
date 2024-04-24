@@ -60,6 +60,11 @@ export default class PropertiesService {
     return domains;
   }
 
+  /**
+   * Extract a layer's classes, format them into GraphLayer objects and sort them from top to bottom
+   * @param records
+   * @private
+   */
   private formatLayers(records: Record<Neo4jLayerRecord>[]): GraphLayer[] {
     const layers: GraphLayer[] = [];
 
@@ -90,13 +95,28 @@ export default class PropertiesService {
       });
     });
 
-    return layers.sort((a, b) => {
-      if (a.parentLabel === b.label) return -1;
-      if (b.parentLabel === a.label) return 1;
-      return 0;
-    }).reverse();
+    // Find the top layer that does not have any parents
+    let parentLayer = layers.find((l) => l.parentLabel === undefined)!;
+    if (!parentLayer) throw new Error('No top layer (without any parent labels) found.');
+    const sortedLayers = [parentLayer];
+
+    // Manually sort the labels into their parent-child order. The JavaScript .sort() function
+    // does not work well, because it requires a comparison value between all elements in the
+    // array, which would require a lot of searching and looping. This loop is a bit easier.
+    while (parentLayer) {
+      // eslint-disable-next-line @typescript-eslint/no-loop-func
+      const childLayer = layers.find((l) => l.parentLabel === parentLayer.label);
+      if (!childLayer) break;
+      sortedLayers.push(childLayer);
+      parentLayer = childLayer;
+    }
+
+    return sortedLayers;
   }
 
+  /**
+   * Get a summary of the complete graph's layering
+   */
   async getLayers() {
     const query = 'MATCH (n)-[r:CONTAINS]->(m) RETURN distinct labels(n) as from, labels(m) as to';
     const records = await this.client.executeQuery<Neo4jLayerRecord>(query);
