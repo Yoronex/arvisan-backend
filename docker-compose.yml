@@ -18,9 +18,10 @@ services:
       - NEO4J_USERNAME=neo4j
       - NEO4J_PASSWORD=${NEO4J_PASSWORD}
       - NEO4J_QUERY_TIMEOUT=10000
-      - HTTP_BASIC_AUTH_USERNAME=developer
-      - HTTP_BASIC_AUTH_PASSWORD=password
+      - HTTP_BASIC_AUTH_USERNAME=
+      - HTTP_BASIC_AUTH_PASSWORD=
       - HTTP_FRONTEND_URL=http://localhost:5173
+      - UNCATEGORIZED_DOMAIN_NODE_NAME=no_domain
   # Optional neo4j database instance. You can also use an instance installed on the host machine
   neo4j:
     image: neo4j:latest

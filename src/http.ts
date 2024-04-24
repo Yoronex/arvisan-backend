@@ -25,29 +25,31 @@ export default async function createHttp() {
   app.use(cors({ credentials: true, origin: process.env.HTTP_FRONTEND_URL }));
 
   /**
-   * HTTP Basic Auth on all endpoints
+   * HTTP Basic Auth on all endpoints. Only enabled if username and password are defined
    */
-  app.use((req, res, next) => {
-    const auth = {
-      login: process.env.HTTP_BASIC_AUTH_USERNAME,
-      password: process.env.HTTP_BASIC_AUTH_PASSWORD,
-    }; // change this
+  if (!!process.env.HTTP_BASIC_AUTH_USERNAME && !!process.env.HTTP_BASIC_AUTH_PASSWORD) {
+    app.use((req, res, next) => {
+      const auth = {
+        login: process.env.HTTP_BASIC_AUTH_USERNAME,
+        password: process.env.HTTP_BASIC_AUTH_PASSWORD,
+      }; // change this
 
-    // parse login and password from headers
-    const b64auth = (req.headers.authorization || '').split(' ')[1] || '';
-    const [login, password] = atob(b64auth).split(':');
+      // parse login and password from headers
+      const b64auth = (req.headers.authorization || '').split(' ')[1] || '';
+      const [login, password] = atob(b64auth).split(':');
 
-    // Verify login and password are set and correct
-    if (login && password && login === auth.login && password === auth.password) {
-      // Access granted...
-      return next();
-    }
+      // Verify login and password are set and correct
+      if (login && password && login === auth.login && password === auth.password) {
+        // Access granted...
+        return next();
+      }
 
-    // Access denied...
-    res.set('WWW-Authenticate', 'Basic realm="401"');
-    res.status(401).send('Authentication required.');
-    return res;
-  });
+      // Access denied...
+      res.set('WWW-Authenticate', 'Basic realm="401"');
+      res.status(401).send('Authentication required.');
+      return res;
+    });
+  }
 
   RegisterRoutes(app);
 
