@@ -14,8 +14,8 @@ export default class BreadcrumbService {
 
   /**
    * Given a node ID, get its breadcrumb path with possible alternative options
-   * for the parent breadcrumb. Top layer is not included and should be fetched
-   * with a separate function (PropertiesService.getDomains());
+   * for the parent breadcrumb. Top layer is included, but without any options.
+   * These should be fetched with a separate function (PropertiesService.getDomains());
    * @param id
    * @private
    */
@@ -40,7 +40,7 @@ export default class BreadcrumbService {
       // and the "Domain" layer is the last
       .reverse();
 
-    const breadcrumbs: Breadcrumb[] = breadcrumbParents.map((p) => {
+    let breadcrumbs: Breadcrumb[] = breadcrumbParents.map((p) => {
       const optionNodes = records.filter((r) => r.get('parent').elementId === p.id);
       const options: NodeData[] = optionNodes.map((n) => {
         const option = n.get('option');
@@ -65,7 +65,7 @@ export default class BreadcrumbService {
 
     // The current label/id of the breadcrumbs are still the parents,
     // while they should be layer label and the current selected node ID of that layer.
-    return breadcrumbs.map((breadcrumb, i, all): Breadcrumb => {
+    breadcrumbs = breadcrumbs.map((breadcrumb, i, all): Breadcrumb => {
       const elementId = all[i + 1]?.id ?? id;
       const selectedOption = breadcrumb.options.find((o) => o.id === elementId)!;
       return {
@@ -75,6 +75,32 @@ export default class BreadcrumbService {
         options: breadcrumb.options,
       };
     });
+
+    // If we have no top level node, the selected node must have no incoming containment edges
+    // and is thus a top-level node itself. We can simply fix this by fetching the node
+    let topLevelNode = breadcrumbParents[0];
+    if (!topLevelNode) {
+      const node = (await this.client
+        .executeQuery<{ n: INeo4jComponentNode }>(`MATCH (n WHERE elementId(n) = '${id}') RETURN n`))[0]?.get('n');
+      // If we cannot find the node, no node with the given ID exists. Return nothing.
+      if (!node) return [];
+      const layerLabel = ElementParserService.getLongestLabel(node.labels);
+      topLevelNode = {
+        id: node.elementId,
+        name: node.properties.simpleName,
+        layerLabel,
+      };
+    }
+
+    // Add the top-layer node without any options
+    breadcrumbs.unshift({
+      id: topLevelNode.id,
+      name: topLevelNode.name,
+      layerLabel: topLevelNode.layerLabel,
+      options: [],
+    });
+
+    return breadcrumbs;
   }
 
   /**
