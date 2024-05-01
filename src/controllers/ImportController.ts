@@ -1,8 +1,7 @@
 import {
-  Controller, FormField, Get, Post, Produces, Request, Res, Response, Route, Tags,
+  Controller, FormField, Get, Post, Produces, Res, Response, Route, Tags,
   UploadedFile, UploadedFiles,
 } from 'tsoa';
-import express from 'express';
 import { TsoaResponse } from '@tsoa/runtime';
 import parseGraph from 'arvisan-input-parser/src/parser';
 import { getCsvNodes, getCsvEdges } from 'arvisan-input-parser/src/csv';
@@ -12,6 +11,7 @@ import multer from 'multer';
 import archiver from 'archiver';
 import * as fs from 'fs';
 import path from 'node:path';
+import { Readable } from 'node:stream';
 import ErrorResponse from './responses/ErrorResponse';
 
 @Route('graph/import')
@@ -30,7 +30,6 @@ export class ImportController extends Controller {
   /**
    * Given a set of input files, get a .zip file containing a set of nodes and a set of edges.
    * Note that this endpoint may take several minutes to complete.
-   * @param request
    * @param disabledResponse
    * @param validationErrorResponse
    * @param structureFiles Files containing the structure of the landscape
@@ -46,8 +45,7 @@ export class ImportController extends Controller {
   @Response<ErrorResponse>(501, 'Graph importing disabled')
   @Produces('application/zip')
   public async parseGraph(
-    @Request() request: express.Request,
-      @Res() disabledResponse: TsoaResponse<501, ErrorResponse>,
+    @Res() disabledResponse: TsoaResponse<501, ErrorResponse>,
       @Res() validationErrorResponse: TsoaResponse<400, ErrorResponse>,
       @UploadedFiles() structureFiles?: Express.Multer.File[],
       @UploadedFiles() dependencyFiles?: Express.Multer.File[],
@@ -55,20 +53,15 @@ export class ImportController extends Controller {
       @UploadedFiles() integrationFiles?: Express.Multer.File[],
       @FormField() includeModuleLayerLayer?: string,
       @FormField() anonymize?: string,
-  ): Promise<void> {
+  ): Promise<Readable> {
     if (!process.env.GRAPH_IMPORT_LOCATION) {
       this.setStatus(501);
-      disabledResponse(501, { message: 'Graph importing is disabled. If you wish to use this feature, enable it in the environment variables.' });
-      return;
+      return disabledResponse(501, { message: 'Graph importing is disabled. If you wish to use this feature, enable it in the environment variables.' });
     }
     if (!parseGraph || !getCsvNodes || !getCsvEdges || !multer || !archiver || !validateGraph) {
       this.setStatus(501);
-      disabledResponse(501, { message: 'Graph importing is enabled, but some dependencies are missing. Make sure you have all optional dependencies installed.' });
-      return;
+      return disabledResponse(501, { message: 'Graph importing is enabled, but some dependencies are missing. Make sure you have all optional dependencies installed.' });
     }
-
-    const { res } = request;
-    if (!res) throw new Error('express.Response not found.');
 
     const graph = parseGraph(
       structureFiles?.map((f) => f.buffer),
@@ -92,35 +85,34 @@ export class ImportController extends Controller {
     const nodesBuffer = getCsvNodes(graph.elements.nodes);
     const edgesBuffer = getCsvEdges(graph.elements.edges);
 
-    await new Promise<void>((resolve, reject) => {
+    const buffers: Buffer[] = [];
+
+    const zip = await new Promise<Buffer>((resolve, reject) => {
       const archive = archiver('zip');
 
+      archive.on('data', (d) => buffers.push(d));
       archive.on('close', () => {
-        res.send();
-        resolve();
+        resolve(Buffer.concat(buffers));
       });
-
       archive.on('error', (e) => {
         console.error(e);
         reject(e);
       });
-
-      res.setHeader('Content-Disposition', `attachment; filename="${outputFileName}"`);
-      res.setHeader('Content-Type', 'application/zip');
-      res.attachment(outputFileName);
-      archive.pipe(res);
 
       archive.append(nodesBuffer, { name: nodesFileName });
       archive.append(edgesBuffer, { name: edgesFileName });
 
       archive.finalize();
     });
+
+    this.setHeader('Content-Disposition', `attachment; filename="${outputFileName}"`);
+    this.setHeader('Content-Type', 'application/zip');
+    return Readable.from(zip);
   }
 
   /**
    * Drop the existing database and seed it with the provided set of nodes and edges.
    * Note that this endpoint may take several minutes to complete.
-   * @param request
    * @param errorResponse
    * @param nodes Set of nodes
    * @param relationships Set of edges
@@ -128,8 +120,7 @@ export class ImportController extends Controller {
   @Post('import')
   @Response<ErrorResponse>(501, 'Graph importing disabled')
   public async importGraph(
-    @Request() request: express.Request,
-      @Res() errorResponse: TsoaResponse<501, ErrorResponse>,
+    @Res() errorResponse: TsoaResponse<501, ErrorResponse>,
       @UploadedFile() nodes: Express.Multer.File,
       @UploadedFile() relationships: Express.Multer.File,
   ): Promise<void> {
