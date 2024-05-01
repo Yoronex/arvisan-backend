@@ -5,7 +5,3 @@ dist
 .env
 
 version.json
-
-# Parsed/uploaded files
-*.csv
-*.zip
