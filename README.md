@@ -64,5 +64,5 @@ To install the backend manually:
 - Copy .env-example to .env. Add the Neo4j user credentials (username and password) to the Neo4j environment variables.
 Also choose a username and password, which is used to authenticate with this backend.
 - Install all dependencies: `npm install`.
-- Start the application: `npm run dev`.
+- Start the application: `npm run dev`. If you get an error 
 - The backend is now accessible on http://localhost:3000. The API documentation can be viewed at http://localhost:3000/api-docs

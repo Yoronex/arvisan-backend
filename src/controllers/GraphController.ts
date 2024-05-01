@@ -7,10 +7,7 @@ import { GraphWithViolations } from '../entities/Graph';
 import ElementParserService from '../services/processing/ElementParserService';
 import BreadcrumbService from '../services/BreadcrumbService';
 import { Breadcrumb } from '../entities/Breadcrumb';
-
-interface ErrorResponse {
-  message: string;
-}
+import ErrorResponse from './responses/ErrorResponse';
 
 @Route('graph')
 @Tags('Graph')
