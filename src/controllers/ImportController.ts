@@ -1,23 +1,54 @@
 import {
-  Controller, FormField, Post, Produces, Request, Res, Response, Route, Tags, UploadedFiles,
+  Controller, FormField, Get, Post, Produces, Request, Res, Response, Route, Tags,
+  UploadedFile, UploadedFiles,
 } from 'tsoa';
 import express from 'express';
 import { TsoaResponse } from '@tsoa/runtime';
 import parseGraph from 'arvisan-input-parser/src/parser';
 import { getCsvNodes, getCsvEdges } from 'arvisan-input-parser/src/csv';
+import { validateGraph } from 'arvisan-input-parser/src/graph';
+import { injectGraphCypher } from 'arvisan-input-parser/src/neo4j-inject';
 import multer from 'multer';
 import archiver from 'archiver';
+import * as fs from 'fs';
+import path from 'node:path';
 import ErrorResponse from './responses/ErrorResponse';
 
 @Route('graph/import')
 @Tags('Graph')
 export class ImportController extends Controller {
+  /**
+   * Returns whether the graph parse and import endpoints are enabled, i.e.
+   * whether the preconditions for the graph import controller are met.
+   */
+  @Get()
+  public canUseGraphImport(): boolean {
+    return !!process.env.GRAPH_IMPORT_LOCATION
+      && !!parseGraph && !!getCsvNodes && !!getCsvEdges && !!multer && !!archiver;
+  }
+
+  /**
+   * Given a set of input files, get a .zip file containing a set of nodes and a set of edges.
+   * Note that this endpoint may take several minutes to complete.
+   * @param request
+   * @param disabledResponse
+   * @param validationErrorResponse
+   * @param structureFiles Files containing the structure of the landscape
+   * (domains, applications, sublayers, and modules).
+   * @param dependencyFiles Files containing consumers and producers.
+   * @param integrationFiles Files containing dynamic data about integrations and service APIs.
+   * @param detailsFiles Files containing more details about modules.
+   * @param includeModuleLayerLayer Whether the "Layer" layer from the OutSystems Architecture
+   * Canvas should be included in the resulting graph
+   * @param anonymize Whether the output graph should be anonymized
+   */
   @Post('parse')
   @Response<ErrorResponse>(501, 'Graph importing disabled')
   @Produces('application/zip')
-  public async importGraph(
+  public async parseGraph(
     @Request() request: express.Request,
-      @Res() errorResponse: TsoaResponse<501, ErrorResponse>,
+      @Res() disabledResponse: TsoaResponse<501, ErrorResponse>,
+      @Res() validationErrorResponse: TsoaResponse<400, ErrorResponse>,
       @UploadedFiles() structureFiles?: Express.Multer.File[],
       @UploadedFiles() dependencyFiles?: Express.Multer.File[],
       @UploadedFiles() detailsFiles?: Express.Multer.File[],
@@ -27,12 +58,12 @@ export class ImportController extends Controller {
   ): Promise<void> {
     if (!process.env.GRAPH_IMPORT_LOCATION) {
       this.setStatus(501);
-      errorResponse(501, { message: 'Graph importing is disabled. If you wish to use this feature, enable it in the environment variables.' });
+      disabledResponse(501, { message: 'Graph importing is disabled. If you wish to use this feature, enable it in the environment variables.' });
       return;
     }
-    if (!parseGraph || !getCsvNodes || !getCsvEdges || !multer) {
+    if (!parseGraph || !getCsvNodes || !getCsvEdges || !multer || !archiver || !validateGraph) {
       this.setStatus(501);
-      errorResponse(501, { message: 'Graph importing is enabled, but some dependencies are missing. Make sure you have all optional dependencies installed.' });
+      disabledResponse(501, { message: 'Graph importing is enabled, but some dependencies are missing. Make sure you have all optional dependencies installed.' });
       return;
     }
 
@@ -47,6 +78,12 @@ export class ImportController extends Controller {
       includeModuleLayerLayer === 'true',
       anonymize === 'true',
     );
+
+    try {
+      validateGraph(graph, detailsFiles && detailsFiles.length > 0);
+    } catch (e: any) {
+      validationErrorResponse(400, { message: `Graph validation failed. ${e.message}` });
+    }
 
     const nodesFileName = 'nodes.csv';
     const edgesFileName = 'relationships.csv';
@@ -78,5 +115,37 @@ export class ImportController extends Controller {
 
       archive.finalize();
     });
+  }
+
+  /**
+   * Drop the existing database and seed it with the provided set of nodes and edges.
+   * Note that this endpoint may take several minutes to complete.
+   * @param request
+   * @param errorResponse
+   * @param nodes Set of nodes
+   * @param relationships Set of edges
+   */
+  @Post('import')
+  @Response<ErrorResponse>(501, 'Graph importing disabled')
+  public async importGraph(
+    @Request() request: express.Request,
+      @Res() errorResponse: TsoaResponse<501, ErrorResponse>,
+      @UploadedFile() nodes: Express.Multer.File,
+      @UploadedFile() relationships: Express.Multer.File,
+  ): Promise<void> {
+    if (!process.env.GRAPH_IMPORT_LOCATION) {
+      this.setStatus(501);
+      errorResponse(501, { message: 'Graph importing is disabled. If you wish to use this feature, enable it in the environment variables.' });
+      return;
+    }
+    if (!injectGraphCypher) {
+      this.setStatus(501);
+      errorResponse(501, { message: 'Graph importing is enabled, but some dependencies are missing. Make sure you have all optional dependencies installed.' });
+    }
+
+    fs.writeFileSync(path.join(process.env.GRAPH_IMPORT_LOCATION, 'nodes.csv'), nodes.buffer);
+    fs.writeFileSync(path.join(process.env.GRAPH_IMPORT_LOCATION, 'relationships.csv'), relationships.buffer);
+
+    await injectGraphCypher(process.env.NEO4J_PASSWORD ?? '', process.env.NEO4J_DATABASE, process.env.NEO4J_URL);
   }
 }
