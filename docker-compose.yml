@@ -22,6 +22,9 @@ services:
       - HTTP_BASIC_AUTH_PASSWORD=
       - HTTP_FRONTEND_URL=http://localhost:5173
       - UNCATEGORIZED_DOMAIN_NODE_NAME=no_domain
+      - GRAPH_IMPORT_LOCATION=/import
+    volumes:
+      - neo4j_import:/import
   # Optional neo4j database instance. You can also use an instance installed on the host machine
   neo4j:
     image: neo4j:latest

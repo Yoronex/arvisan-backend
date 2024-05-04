@@ -3,10 +3,10 @@ import {
   UploadedFile, UploadedFiles,
 } from 'tsoa';
 import { TsoaResponse } from '@tsoa/runtime';
-import parseGraph from 'arvisan-input-parser/src/parser';
-import { getCsvNodes, getCsvEdges } from 'arvisan-input-parser/src/csv';
-import { validateGraph } from 'arvisan-input-parser/src/graph';
-import { injectGraphCypher } from 'arvisan-input-parser/src/neo4j-inject';
+import parseGraph from 'arvisan-input-parser/dist/parser';
+import { getCsvNodes, getCsvEdges } from 'arvisan-input-parser/dist/csv';
+import { validateGraph } from 'arvisan-input-parser/dist/graph';
+import { injectGraphCypher } from 'arvisan-input-parser/dist/neo4j-inject';
 import multer from 'multer';
 import archiver from 'archiver';
 import * as fs from 'fs';
