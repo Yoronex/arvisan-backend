@@ -19,9 +19,10 @@ export default async function createHttp() {
   app.use(
     bodyParser.urlencoded({
       extended: true,
+      limit: '100mb',
     }),
   );
-  app.use(bodyParser.json());
+  app.use(bodyParser.json({ limit: '100mb' }));
   app.use(cors({ credentials: true, origin: process.env.HTTP_FRONTEND_URL }));
 
   /**
