@@ -14,7 +14,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@tsoa/runtime": "^6.2.1",
+    "@tsoa/cli": "https://gitpkg.now.sh/Yoronex/tsoa/packages/cli?master",
+    "@tsoa/runtime": "https://gitpkg.now.sh/Yoronex/tsoa/packages/runtime?master",
     "archiver": "^7.0.1",
     "arvisan-input-parser": "github:Yoronex/arvisan-input-parser",
     "body-parser": "^1.20.2",
@@ -24,7 +25,7 @@
     "multer": "^1.4.5-lts.1",
     "neo4j-driver": "^5.15.0",
     "swagger-ui-express": "^5.0.0",
-    "tsoa": "^6.2.1"
+    "tsoa": "https://gitpkg.now.sh/Yoronex/tsoa/packages/tsoa?master"
   },
   "devDependencies": {
     "@types/archiver": "^6.0.2",
