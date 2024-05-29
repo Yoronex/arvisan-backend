@@ -16,7 +16,7 @@ services:
     environment:
       - NEO4J_URL=bolt://neo4j:7687 # Use bolt://host.docker.internal:7687 when using local neo4j instance
       - NEO4J_USERNAME=neo4j
-      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+      - NEO4J_PASSWORD=ChangeMe!Ord0nt
       - NEO4J_QUERY_TIMEOUT=10000
       - HTTP_BASIC_AUTH_USERNAME=
       - HTTP_BASIC_AUTH_PASSWORD=
@@ -36,7 +36,7 @@ services:
     #   - 7474:7474
     #   - 7687:7687
     environment:
-      - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD}
+      - NEO4J_AUTH=neo4j/ChangeMe!Ord0nt
       - NEO4J_apoc_export_file_enabled=true
       - NEO4J_apoc_import_file_enabled=true
       - NEO4J_apoc_import_file_use__neo4j__config=true
