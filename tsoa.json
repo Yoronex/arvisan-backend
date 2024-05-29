@@ -22,5 +22,10 @@
     "basePath": "/api",
     "routesDir": "build",
     "middleware": "express"
+  },
+  "multerOpts": {
+    "limits": {
+      "fileSize": 134217728
+    }
   }
 }
