@@ -7,6 +7,8 @@ import parseGraph from 'arvisan-input-parser/dist/parser';
 import { getCsvNodes, getCsvEdges } from 'arvisan-input-parser/dist/csv';
 import { validateGraph } from 'arvisan-input-parser/dist/graph';
 import { injectGraphCypher } from 'arvisan-input-parser/dist/neo4j-inject';
+import { getViolationsAsGraph } from 'arvisan-input-parser/dist/violations';
+import { Graph } from 'arvisan-input-parser/dist/structure';
 import multer from 'multer';
 import archiver from 'archiver';
 import * as fs from 'fs';
@@ -71,6 +73,7 @@ export class ImportController extends Controller {
       includeModuleLayerLayer === 'true',
       anonymize === 'true',
     );
+    const violations = getViolationsAsGraph();
 
     try {
       validateGraph(graph, detailsFiles && detailsFiles.length > 0);
@@ -78,12 +81,15 @@ export class ImportController extends Controller {
       validationErrorResponse(400, { message: `Graph validation failed. ${e.message}` });
     }
 
+    const nodes: Graph['elements']['nodes'] = [...graph.elements.nodes, ...violations.elements.nodes];
+    const edges: Graph['elements']['edges'] = [...graph.elements.edges, ...violations.elements.edges];
+
     const nodesFileName = 'nodes.csv';
     const edgesFileName = 'relationships.csv';
     const outputFileName = 'output.zip';
 
-    const nodesBuffer = getCsvNodes(graph.elements.nodes);
-    const edgesBuffer = getCsvEdges(graph.elements.edges);
+    const nodesBuffer = getCsvNodes(nodes);
+    const edgesBuffer = getCsvEdges(edges);
 
     const buffers: Buffer[] = [];
 
